@@ -1,0 +1,139 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%     HELIUM CONFIGURATION FILE LOKI     %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% working conditions of the simulation
+workingConditions:
+  reducedField: 2002                    % in Td
+  electronTemperature: 1.87             % in eV
+  excitationFrequency: 2.45e9           % in Hz
+  gasPressure: 120.793073               % in Pa
+  gasTemperature: 1000                  % in K   (average gas temperature)
+  wallTemperature: 390                  % in K   (wall temperature)
+  extTemperature: 300                   % in K   (external temperature)
+  surfaceSiteDensity: 1e19              % in m-2 (used for surface kinetics)
+  electronDensity: 1.7e19               % in m-3
+  chamberLength: 0.0                    % in m
+  chamberRadius: 0.003                  % in m
+
+
+% configuration for the electron kinetics (eedf solver)
+electronKinetics:
+  isOn: true                            % true or false (to activate or deactivate the electron Kinetics)
+  eedfType: boltzmann                   % boltzmann or prescribedEedf (generalized expression Maxwellian/Druyvesteyn)
+%   shapeParameter: 1                     % prescribedEedf shape parameter from 1 (Maxwellian) to 2 (Druyvesteyn)
+  ionizationOperatorType: conservative  % conservative, oneTakesAll, equalSharing or usingSDCS
+  growthModelType: temporal             % temporal or spatial
+  includeEECollisions: false            % true or false (to include / remove e-e collisions)
+  LXCatFiles:                           % cross section files
+    - Helium/He_LXCat_with_metastables.txt
+    - Helium/low_pressure/He_metastables_boltzmann.txt              % 1992 cross sections for metastables boltzmann
+  LXCatFilesExtra:                      % extra cross section files
+    % high pressure cs, the tests were performed using these cross sections
+    % and 1992 ionization cross sections
+    - Helium/low_pressure/He_extra_excitation.txt
+    - Helium/high_pressure/He_extra_metastables_belmonte.txt
+    - Helium/high_pressure/He_extra_excitationDipoleAllowed.txt
+    - Helium/high_pressure/He_extra_excitationDipoleForbidden.txt
+    - Helium/high_pressure/He_extra_excitationSpinForbidden.txt
+    - Helium/high_pressure/He_extra_excitationPlus4toPlus5.txt
+    % low pressure cs ( some error in loki, before did not actually test these cs, with exception of the ionizations)
+%     - Helium/low_pressure/1992cs_2s3.txt                   % Cross-sections used in 1992 article pia02*(3.76e-2*(En-1)/En^3 + 6.65e-1*(En-1)/En^5)
+%     - Helium/low_pressure/1992cs_2.txt                  % Cross-sections used in 1992 article pia02*A1*(En^2-1)/En^A2
+%     - Helium/low_pressure/1992cs_3.txt                  % Cross-sections used in 1992 article pia02*A1*(En-1)/En^A2
+%     - Helium/low_pressure/1992cs_4.txt                  % Cross-sections used in 1992 article pia02*3.49*(13.59/(duij))^2*(En-1)/(En^(2))*log(1.25*En)
+%     - Helium/low_pressure/1992cs_5.txt                  % Cross-sections used in 1992 article (corrected as LC Johnson) pia02*4*A2*(Ry/duij)^2*fij*(1 - exp(-Ep*(x+1)))*log(x+0.2)/x
+    - Helium/low_pressure/He_extra_ionizations_1992.txt % Cross-sections used in 1992 article pia02*3.49*(13.59/(duij))^2*(En-1)/(En^(2.14))*log(1.24*En)
+  gasProperties:                        % properties of the gases (S.I. Units)
+    mass: Databases/masses.txt
+    fraction:
+      - He = 1
+    harmonicFrequency: Databases/harmonicFrequencies.txt
+    anharmonicFrequency: Databases/anharmonicFrequencies.txt
+    rotationalConstant: Databases/rotationalConstants.txt
+    electricQuadrupoleMoment: Databases/quadrupoleMoment.txt
+    OPBParameter: Databases/OPBParameter.txt
+  stateProperties:                      % properties of the states (S.I. Units except for the energy [eV])
+    energy: Helium/databaseStateEnergyHe.txt
+    statisticalWeight: Helium/databaseStatisticalWeightsHe.txt
+    population:
+      - He(1S1) = 1
+  numerics:                             % configuration of numerical details of the simulation
+    energyGrid:                         % properties of the energy grid (in eV)
+      maxEnergy: 100                    % (use 18-20 for time-dependent simulations)
+      cellNumber: 1000                  % (use 1800-2000 for time-dependent simulations)
+      smartGrid:                        % configuration of the smart grid
+        minEedfDecay: 20                % minimum number of decade-fall for the EEDF
+        maxEedfDecay: 25                % maximum number of decade-fall for the EEDF
+        updateFactor: 0.05              % factor used to increase or decrease the maximum value of the energy grid
+    maxPowerBalanceRelError: 1e-9       % threshold for the relative power balance warning message (use at least 100 for time dependent simulations)
+    nonLinearRoutines:
+      algorithm: mixingDirectSolutions  % mixingDirectSolutions or temporalIntegration
+      mixingParameter: 0.7              % mixingDirectSolutions mixing parameter from 0 to 1
+      maxEedfRelError: 1e-9             % maximum rel. variation for EEDF between two iterations (stop criterion)
+%       odeSetParameters:                 % optional parameters for the ode solver of the "temporalIntegration" algorithm             
+%         AbsTol: 1e-300
+%         RelTol: 1e-6
+%         MaxStep: 1e-7
+
+% --- configuration of the heavy-species for the kinetic scheme ---
+chemistry:
+  isOn: true
+  thermalModel:
+    isOn: false                         % true or false (to activate or deactivate the thermal model)
+    boundary: wall                      % wall or external (location of the model boundary condition)
+    wallFraction: 1                     % fraction of energy released at the wall that returns to the gas/plasma volume (check fw parameter in the documentation)
+    intConvCoeff: 120/1.6021766208e-19  % in eV s-1 m-2 K-1 (internal convection coefficient of the cylindrical wall)
+    extConvCoeff: 15/1.6021766208e-19   % in eV s-1 m-2 K-1 (external convection coefficient of the cylindrical wall)
+  chemFiles:
+    - Helium/low_pressure/helium_eExcitation_lp.chem
+    - Helium/low_pressure/helium_heavySpecies_lp.chem
+  gasProperties:                        % inherited from the configuration of the electron kinetics
+    mass: Databases/masses.txt
+  stateProperties:
+    reducedDiffCoeff:
+      - He(2S3) = generalizedTemperatureDependentCoeff@8.6155e+19,gasTemperature,0.5
+      - He(2S1) = generalizedTemperatureDependentCoeff@8.6155e+19,gasTemperature,0.5
+      - He(+,1S2) = diffusionHeliumAtomicIon@2.68e21,2.96e-3,3.11e-2,gasTemperature
+      - He2(+,2S3) = generalizedTemperatureDependentCoeff@2.2405e+17,gasTemperature,1
+    reducedMobility:
+      - He(+,1S2) = mobilityHeliumAtomicIon@2.68e21,2.96e-3,3.11e-2,gasTemperature
+      - He2(+,2S3) = 2.6e21
+  iterationSchemes:
+    pressureRelError: 1e-5
+    pressureMaxIterations: 500
+    neutralityRelError: 1e-5
+    neutralityMaxIterations: 100
+    globalRelError: 1e-5
+    globalMaxIterations: 200
+  timeIntegrationConf:
+    odeSolver: ode15s
+    steadyStateTime: 1
+    postDischargeTime: 0
+%     odeSetParameters:                   % optional parameters that can be sent to the odeSolver
+%       RelTol: 1e-7
+%       AbsTol: 1e-10
+%       MaxStep: 0.1
+
+% --- configuration of the grafical user interface ---
+gui:
+  isOn: true
+  refreshFrequency: 1
+
+% ---  configuration of the output files ---
+output:
+  isOn: false
+  folder: helium_lp
+  dataFiles:
+%     - inputs
+    - log
+    - eedf
+    - swarmParameters
+    - rateCoefficients
+    - powerBalance
+%     - lookUpTable
+    - finalDensities
+    - finalTemperatures
+    - finalParticleBalance
+%     - finalThermalBalance
+    - chemSolutionTime

@@ -1,0 +1,526 @@
+% (3) electron-impact ionization
+
+e + He(1S1) -> e + e + He(+,1S2)                       |eedf |      |
+e + He(2S3) -> e + e + He(+,1S2)                       |eedf |      |
+e + He(2S1) -> e + e + He(+,1S2)                       |eedf |      |
+e + He(2P3) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(2P1) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(3S3) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(3S1) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(3P3) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(3D3) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(3D1) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(3P1) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(4S3) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(4S1) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(4P3) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(4D3) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(4D1) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(4F3) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(4F1) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(4P1) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(5S3) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(5S1) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(5D3) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(5D1) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(5FG3) -> e + e + He(+,1S2)                      |eedf   |    |
+e + He(5FG1) -> e + e + He(+,1S2)                      |eedf   |    |
+e + He(5P1) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(6S3) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(6S1) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(6P3) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(6D3) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(6D1) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(6FGH3) -> e + e + He(+,1S2)                     |eedf   |    |
+e + He(6FGH1) -> e + e + He(+,1S2)                     |eedf   |    |
+e + He(6P1) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(7S3) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(7S1) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(7P3) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(7D3) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(7D1) -> e + e + He(+,1S2)                       |eedf   |    |
+e + He(7FGHI3) -> e + e + He(+,1S2)                    |eedf   |    |
+e + He(7FGHI1) -> e + e + He(+,1S2)                    |eedf   |    |
+e + He(7P1) -> e + e + He(+,1S2)                       |eedf   |    |
+%--------------------------------------------------------------------------
+
+% (4) excimer ionization
+% e + He2(exc) -> e + e + He2(+,2S3)                     |modifiedArrheniusCharEnergyTemp |9.75e-16, 0.71, -3.4         |
+%--------------------------------------------------------------------------
+
+% (5) dissociative recombination of molecular ions
+% e + He2(+,2S3) -> He(2S3) + He(1S1)                    |eedf   |    |
+% e + He2(+,2S3) -> He(2S1) + He(1S1)                    |eedf   |    |
+% e + He2(+,2S3) -> He(2P3) + He(1S1)                    |eedf   |    |
+% e + He2(+,2S3) -> He(2P1) + He(1S1)                    |eedf   |    |
+
+% 1992 version
+e + He2(+,2S3) -> He(2S3) + He(1S1)                    |powerGasCharEnergyTemp   |5e-15, 1, -1      |
+%--------------------------------------------------------------------------
+
+% (6) electron-stabilized recombination of atomic ions
+e + e + He(+,1S2) -> e + He(2S3)                       |powerGasCharEnergyTemp     |1.1e-26, 2.3, -4.5      |
+%--------------------------------------------------------------------------
+
+% (7) electron-stabilized recombination molecular ions br=0.5
+e + e + He2(+,2S3) -> e + He(1S1) + He(2S3)            |powerGasCharEnergyTemp     |5.5e-27, 2.3, -4.5       |
+% e + e + He2(+,2S3) -> e + He2(exc)                     |powerGasCharEnergyTemp     |5.5e-27, 2.3, -4.5     |
+%--------------------------------------------------------------------------
+
+% (8) electron-impact excimer dissociation
+% e + He2(exc) -> 2He(1S1) + e                           |constantRateCoeff        |4e-15                 |
+%--------------------------------------------------------------------------
+
+% (9) associative ionization with ground state He(nls) + He(1S1) -> e + He2(+,2S3)
+% M. Santos 2014 article values
+% He(3S1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.90e-16  |
+% He(3P1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |8.60e-18  |
+% He(3D1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.30e-16  |
+% He(3S3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.90e-17  |
+% He(3P3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |3.40e-17  |
+% He(3D3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |3.60e-17  |
+% He(4S3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |3.80e-17  |
+% He(4S1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |3.40e-17  |
+% He(4P3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |7.80e-17  |
+% He(4D3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.50e-16  |
+% He(4D1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.50e-16  |
+% He(4F3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.10e-16  |
+% He(4F1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.00e-16  |
+% He(4P1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |4.20e-17  |
+% He(5S3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |4.10e-17  | %1e-17 usado por M Santos %4.10e-17
+% He(5S1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |3.70e-17  |
+% He(5P3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |8.60e-17  |
+% He(5D3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.63e-16  |
+% He(5D1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.75e-16  |
+% He(5FG3) + He(1S1) -> e + He2(+,2S3)                   |constantRateCoeff       |2.16e-16  |
+% He(5FG1) + He(1S1) -> e + He2(+,2S3)                   |constantRateCoeff       |3.92e-16  |
+% He(5P1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |4.70e-17  |
+% He(6S3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |4.40e-17  |
+% He(6S1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |4.00e-17  |
+% He(6P3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |8.90e-17  |
+% He(6D3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.72e-16  |
+% He(6D1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.88e-16  |
+% He(6FGH3) + He(1S1) -> e + He2(+,2S3)                  |constantRateCoeff       |3.07e-16  |
+% He(6FGH1) + He(1S1) -> e + He2(+,2S3)                  |constantRateCoeff       |5.58e-16  |
+% He(6P1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |4.90e-17  |
+
+% values calculated from experimental data sources or used by M. Santos in
+% the computational model
+%He(3S1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2e-16       |% 1.1562884892042072`*^-15 - 1.9271474820070118`*^-17 (*3S1*)
+%He(3P1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.14e-20    |  %
+%He(3D1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.18e-16    |  % 6e-17 used by MSantos     % experimental 1.18-2.04 e-16
+%He(3S3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |4.3e-18     | % <1.88e-17  or 1.80215e-17
+%He(3P3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |4.44E-17    |   % 3.40E-16 used by MSantos     % experimental (2.22 - 4.44) e-17
+%He(3D3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.6e-16     | % 2.98e-17 !!
+%He(4S1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.6004e-17  |     % 1.1855e-16 - 1.0076e-15 ou 1.6004e-17
+%He(4S3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |5.4e-16     |   % 4.82e-17 or 1.88e-17 !!
+%He(4P3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |4.8e-17     |  % 4.8166e-17
+%He(4D3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.05e-16    |  % 1.0506e-16
+%He(4D1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.83e-16    |  % 5.8979e-16 - 1.6219e-15 ou 1.8333e-16
+%He(4F3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |7.24e-17    |  % 4.6691e-16 - 7.6181e-16 ou 7.2495e-17
+%He(4F1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.3098e-16  |    % 4.6691e-16 - 7.6181e-16 ou 1.3098e-16
+%He(4P1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1e-20       |  % <2.2935e-17
+%                                                                                             
+%He(5S3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |5.302E-17   |    %	5.302E-17
+%He(5S1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.30405E-16 |    %	1.30405E-16 -	1.10836E-15 or 1.76044E-17
+%He(5P3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |5.29826E-17 |    %	5.29826E-17
+%He(5D3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.155E-16   |    %	1.155E-16
+%He(5D1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.013E-16   |    %	2.013E-16 -	6.48769E-16 or	1.78409E-15
+%He(5FG3) + He(1S1) -> e + He2(+,2S3)                   |constantRateCoeff       |2.5E-16     |    %	1.448E-16 -	9.3382E-16 or 1.52362E-15
+%He(5FG1) + He(1S1) -> e + He2(+,2S3)                   |constantRateCoeff       |2.6196E-16  |   %	2.6196E-16	9.3382E-16	1.52362E-15
+%He(5P1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.52285E-17 |    %	2.52285E-17	<
+%He(6S3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |5.5671E-17  |   %	5.5671E-17	0	0
+%He(6S1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.16378E-15 |    %	1.36925E-16	1.16378E-15	1.84846E-17
+%He(6P3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |5.56317E-17 |    %	5.56317E-17	0	0
+%He(6D3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.21275E-16 |    %	1.21275E-16	0	0
+%He(6D1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.11365E-16 |    %	2.11365E-16 - 6.81207E-16 ou 1.87329E-15
+%He(6FGH3) + He(1S1) -> e + He2(+,2S3)                  |constantRateCoeff       |2.0272E-16  |   %	2.0272E-16	1.30735E-15	2.13307E-15
+%He(6FGH1) + He(1S1) -> e + He2(+,2S3)                  |constantRateCoeff       |3.66744E-16 |    %	3.66744E-16	1.30735E-15	2.13307E-15
+%He(6P1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.64899E-20 |    %	2.64899E-17 <
+%He(7S3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |5.70628E-17 |    %	5.70628E-17
+%He(7S1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.40348E-16 |    %	1.40348E-16	1.19287E-15	1.89467E-17
+%He(7P3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |5.70225E-17 |    %	5.70225E-17
+%He(7D3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.24307E-16 |    %	1.24307E-16
+%He(7D1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.16649E-16 |    %	2.16649E-16	6.98238E-16	1.92013E-15
+%He(7FGHI3) + He(1S1) -> e + He2(+,2S3)                 |constantRateCoeff       |2.43264E-16 |    %	2.43264E-16	1.56882E-15	2.55968E-15
+%He(7FGHI1) + He(1S1) -> e + He2(+,2S3)                 |constantRateCoeff       |4.40093E-16 |    %	4.40093E-16	1.56882E-15	2.55968E-15
+%He(7P1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.71522E-20 |    %	2.71522E-17	<
+%--------------------------------------------------------------------------
+
+%
+% % (9) associative ionization with ground state He(nls) + He(1S1) -> e + He2(+,2S3)
+% % 1992 article alves for low pressure
+% He(3S1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.90e-16  |
+He(3P1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.31e-17    |
+He(3D1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.96e-16    |
+% He(3S3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.90e-17  |
+% He(3P3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |3.40e-17  |
+He(3D3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |3.14e-17    |
+He(4S3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.75e-16    |
+He(4S1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.48e-16    |
+He(4P3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |3.14e-16    |
+He(4D3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |3.40e-16    |
+He(4D1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |5.90e-16    |
+He(4F3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |3.30e-16    |
+He(4F1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |3.30e-16    |
+He(4P1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.70e-16    |
+He(5S3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |3.00e-16    | %1e-17 usado por M Santos %4.10e-17
+He(5S1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.70e-16    |
+He(5P3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |3.45e-16    |
+He(5D3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |3.70e-16    |
+He(5D1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |6.50e-16    |
+He(5FG3) + He(1S1) -> e + He2(+,2S3)                   |constantRateCoeff       |7.30e-16    |
+He(5FG1) + He(1S1) -> e + He2(+,2S3)                   |constantRateCoeff       |7.30e-16    |
+He(5P1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |1.90e-16    |
+He(6S3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |3.20e-16    |
+He(6S1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.90e-16    |
+He(6P3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |3.60e-16    |
+He(6D3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |3.90e-16    |
+He(6D1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |6.80e-16    |
+He(6FGH3) + He(1S1) -> e + He2(+,2S3)                  |constantRateCoeff       |8.2e-16     |
+He(6FGH1) + He(1S1) -> e + He2(+,2S3)                  |constantRateCoeff       |8.28e-16    |
+He(6P1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.00e-16    |
+He(7S3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |3.28e-16    |
+He(7S1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.97e-16    |
+He(7P3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |3.69e-16    |
+He(7D3) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |4e-16       |
+He(7D1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |6.97e-16    |
+He(7FGHI3) + He(1S1) -> e + He2(+,2S3)                  |constantRateCoeff       |8.61e-16   |
+He(7FGHI1) + He(1S1) -> e + He2(+,2S3)                  |constantRateCoeff       |8.61e-16   |
+He(7P1) + He(1S1) -> e + He2(+,2S3)                    |constantRateCoeff       |2.05e-16    |
+
+%--------------------------------------------------------------------------
+
+% (10) Penning ionization He(nls) + He(n'l's') -> e + He(+,1S2) + He(1S1)
+% and associative ionization with metastables and radiative states
+%
+%bp=0.3
+ He(2S3) + He(2S3) -> e + He(+,1S2) + He(1S1)           |powerGasTemp             |3.5234e-11, -1.86   |
+ He(2S3) + He(2S1) -> e + He(+,1S2) + He(1S1)           |powerGasTemp             |3.5234e-11, -1.86   |
+ He(2S3) + He(2P3) -> e + He(+,1S2) + He(1S1)           |powerGasTemp             |3.5234e-11, -1.86   |
+ He(2S3) + He(2P1) -> e + He(+,1S2) + He(1S1)           |powerGasTemp             |3.5234e-11, -1.86   |
+ He(2S1) + He(2S1) -> e + He(+,1S2) + He(1S1)           |powerGasTemp             |3.5234e-11, -1.86   |
+ He(2S1) + He(2P3) -> e + He(+,1S2) + He(1S1)           |powerGasTemp             |3.5234e-11, -1.86   |
+ He(2S1) + He(2P1) -> e + He(+,1S2) + He(1S1)           |powerGasTemp             |3.5234e-11, -1.86   |
+ He(2P3) + He(2P3) -> e + He(+,1S2) + He(1S1)           |powerGasTemp             |3.5234e-11, -1.86   |
+ He(2P3) + He(2P1) -> e + He(+,1S2) + He(1S1)           |powerGasTemp             |3.5234e-11, -1.86   |
+ He(2P1) + He(2P1) -> e + He(+,1S2) + He(1S1)           |powerGasTemp             |3.5234e-11, -1.86   |
+ He(2S3) + He(2S3) -> e + He2(+,2S3)                    |powerGasTemp             |8.2213e-11, -1.86   |
+ He(2S3) + He(2S1) -> e + He2(+,2S3)                    |powerGasTemp             |8.2213e-11, -1.86   |
+ He(2S3) + He(2P3) -> e + He2(+,2S3)                    |powerGasTemp             |8.2213e-11, -1.86   |
+ He(2S3) + He(2P1) -> e + He2(+,2S3)                    |powerGasTemp             |8.2213e-11, -1.86   |
+ He(2S1) + He(2S1) -> e + He2(+,2S3)                    |powerGasTemp             |8.2213e-11, -1.86   |
+ He(2S1) + He(2P3) -> e + He2(+,2S3)                    |powerGasTemp             |8.2213e-11, -1.86   |
+ He(2S1) + He(2P1) -> e + He2(+,2S3)                    |powerGasTemp             |8.2213e-11, -1.86   |
+ He(2P3) + He(2P3) -> e + He2(+,2S3)                    |powerGasTemp             |8.2213e-11, -1.86   |
+ He(2P3) + He(2P1) -> e + He2(+,2S3)                    |powerGasTemp             |8.2213e-11, -1.86   |
+ He(2P1) + He(2P1) -> e + He2(+,2S3)                    |powerGasTemp             |8.2213e-11, -1.86   |
+
+%bp=0.5
+%He(2S3) + He(2S3) -> e + He(+,1S2) + He(1S1)           |powerGasTemp             |5.8723e-11, -1.86    |
+%He(2S3) + He(2S1) -> e + He(+,1S2) + He(1S1)           |powerGasTemp             |5.8723e-11, -1.86    |
+%He(2S3) + He(2P3) -> e + He(+,1S2) + He(1S1)           |powerGasTemp             |5.8723e-11, -1.86    |
+%He(2S3) + He(2P1) -> e + He(+,1S2) + He(1S1)           |powerGasTemp             |5.8723e-11, -1.86    |
+%He(2S1) + He(2S1) -> e + He(+,1S2) + He(1S1)           |powerGasTemp             |5.8723e-11, -1.86    |
+%He(2S1) + He(2P3) -> e + He(+,1S2) + He(1S1)           |powerGasTemp             |5.8723e-11, -1.86    |
+%He(2S1) + He(2P1) -> e + He(+,1S2) + He(1S1)           |powerGasTemp             |5.8723e-11, -1.86    |
+%He(2P3) + He(2P3) -> e + He(+,1S2) + He(1S1)           |powerGasTemp             |5.8723e-11, -1.86    |
+%He(2P3) + He(2P1) -> e + He(+,1S2) + He(1S1)           |powerGasTemp             |5.8723e-11, -1.86    |
+%He(2P1) + He(2P1) -> e + He(+,1S2) + He(1S1)           |powerGasTemp             |5.8723e-11, -1.86    |
+%He(2S3) + He(2S3) -> e + He2(+,2S3)                    |powerGasTemp             |5.8723e-11, -1.86    |
+%He(2S3) + He(2S1) -> e + He2(+,2S3)                    |powerGasTemp             |5.8723e-11, -1.86    |
+%He(2S3) + He(2P3) -> e + He2(+,2S3)                    |powerGasTemp             |5.8723e-11, -1.86    |
+%He(2S3) + He(2P1) -> e + He2(+,2S3)                    |powerGasTemp             |5.8723e-11, -1.86    |
+%He(2S1) + He(2S1) -> e + He2(+,2S3)                    |powerGasTemp             |5.8723e-11, -1.86    |
+%He(2S1) + He(2P3) -> e + He2(+,2S3)                    |powerGasTemp             |5.8723e-11, -1.86    |
+%He(2S1) + He(2P1) -> e + He2(+,2S3)                    |powerGasTemp             |5.8723e-11, -1.86    |
+%He(2P3) + He(2P3) -> e + He2(+,2S3)                    |powerGasTemp             |5.8723e-11, -1.86    |
+%He(2P3) + He(2P1) -> e + He2(+,2S3)                    |powerGasTemp             |5.8723e-11, -1.86    |
+%He(2P1) + He(2P1) -> e + He2(+,2S3)                    |powerGasTemp             |5.8723e-11, -1.86    |
+%--------------------------------------------------------------------------
+
+%(11) l-change reactions (excitation transfer) |bij
+% M. Santos 2014 article values
+% He(3D3) + He(1S1) <-> He(3P3) + He(1S1)               |orbitalExchange          |7.76e-16, -0.29, 1.28000e+00       |
+% He(3P1) + He(1S1) <-> He(3D1) + He(1S1)               |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00       |
+He(3P3) + He(1S1) <-> He(3S3) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00         |
+He(3D3) + He(1S1) <-> He(3S3) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00         |
+He(3D3) + He(1S1) <-> He(3P3) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 1.28000e+00       |
+He(3D1) + He(1S1) <-> He(3S1) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00         |
+He(3P1) + He(1S1) <-> He(3S1) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00         |
+He(3P1) + He(1S1) <-> He(3D1) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00       |
+                                                                                                   
+He(4P3) + He(1S1) <-> He(4S3) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 1.02000e+00         |
+He(5P3) + He(1S1) <-> He(5S3) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 1.02000e+00         |
+He(6P3) + He(1S1) <-> He(6S3) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 1.02000e+00         |
+He(7P3) + He(1S1) <-> He(7S3) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 1.02000e+00         |
+He(4D3) + He(1S1) <-> He(4P3) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00         |
+He(5D3) + He(1S1) <-> He(5P3) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00         |
+He(6D3) + He(1S1) <-> He(6P3) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00         |
+He(7D3) + He(1S1) <-> He(7P3) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00        |
+He(4D3) + He(1S1) <-> He(4S3) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 1.00000e+00         |
+He(5D3) + He(1S1) <-> He(5S3) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 1.00000e+00         |
+He(6D3) + He(1S1) <-> He(6S3) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 1.00000e+00         |
+He(7D3) + He(1S1) <-> He(7S3) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 1.00000e+00        |
+He(4D1) + He(1S1) <-> He(4S1) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 1.28000e+00         |
+He(5D1) + He(1S1) <-> He(5S1) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 1.28000e+00         |
+He(6D1) + He(1S1) <-> He(6S1) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 1.28000e+00         |
+He(7D1) + He(1S1) <-> He(7S1) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 1.28000e+00        |
+He(4F3) + He(1S1) <-> He(4D3) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00         |
+He(5FG3) + He(1S1) <-> He(5D3) + He(1S1)                |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00         |
+He(6FGH3) + He(1S1) <-> He(6D3) + He(1S1)               |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00         |
+He(7FGHI3) + He(1S1) <-> He(7D3) + He(1S1)              |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00        |
+He(4F3) + He(1S1) <-> He(4P3) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 7.10000e-01         |
+He(5FG3) + He(1S1) <-> He(5P3) + He(1S1)                |orbitalExchange          |7.76e-16, -0.29, 7.10000e-01         |
+He(6FGH3) + He(1S1) <-> He(6P3) + He(1S1)               |orbitalExchange          |7.76e-16, -0.29, 7.10000e-01         |
+He(7FGHI3) + He(1S1) <-> He(7P3) + He(1S1)              |orbitalExchange          |7.76e-16, -0.29, 7.10000e-01        |
+He(4F3) + He(1S1) <-> He(4S3) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 1.00000e+00         |
+He(5FG3) + He(1S1) <-> He(5S3) + He(1S1)                |orbitalExchange          |7.76e-16, -0.29, 1.00000e+00         |
+He(6FGH3) + He(1S1) <-> He(6S3) + He(1S1)               |orbitalExchange          |7.76e-16, -0.29, 1.00000e+00         |
+He(7FGHI3) + He(1S1) <-> He(7S3) + He(1S1)              |orbitalExchange          |7.76e-16, -0.29, 1.00000e+00        |
+He(4F1) + He(1S1) <-> He(4D1) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 0.00000e+0          |
+He(5FG1) + He(1S1) <-> He(5D1) + He(1S1)                |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00         |
+He(6FGH1) + He(1S1) <-> He(6D1) + He(1S1)               |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00         |
+He(7FGHI1) + He(1S1) <-> He(7D1) + He(1S1)              |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00        |
+He(4F1) + He(1S1) <-> He(4S1) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 1.07000e+00         |
+He(5FG1) + He(1S1) <-> He(5S1) + He(1S1)                |orbitalExchange          |7.76e-16, -0.29, 1.07000e+00         |
+He(6FGH1) + He(1S1) <-> He(6S1) + He(1S1)               |orbitalExchange          |7.76e-16, -0.29, 1.07000e+00         |
+He(7FGHI1) + He(1S1) <-> He(7S1) + He(1S1)              |orbitalExchange          |7.76e-16, -0.29, 1.07000e+00        |
+He(4P1) + He(1S1) <-> He(4F1) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00        |
+He(5P1) + He(1S1) <-> He(5FG1) + He(1S1)                |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00         |
+He(6P1) + He(1S1) <-> He(6FGH1) + He(1S1)               |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00         |
+He(7P1) + He(1S1) <-> He(7FGHI1) + He(1S1)              |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00        |
+He(4P1) + He(1S1) <-> He(4D1) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00        |
+He(5P1) + He(1S1) <-> He(5D1) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00         |
+He(6P1) + He(1S1) <-> He(6D1) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00         |
+He(7P1) + He(1S1)<-> He(7D1) + He(1S1)                  |orbitalExchange          |7.76e-16, -0.29, 0.00000e+00         |
+He(4P1) + He(1S1) <-> He(4S1) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 1.05e+00           |
+He(5P1) + He(1S1) <-> He(5S1) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 1.05000e+00         |
+He(6P1) + He(1S1) <-> He(6S1) + He(1S1)                 |orbitalExchange          |7.76e-16, -0.29, 1.05000e+00         |
+He(7P1) + He(1S1)<-> He(7S1) + He(1S1)                  |orbitalExchange          |7.76e-16, -0.29, 1.05000e+00         |
+%--------------------------------------------------------------------------
+
+% (11') spin quantum number change reaction
+He(4F1) + He(1S1) <-> He(4F3) + He(1S1)                 |constantRateCoeff          |1e-10    |
+He(5FG1) + He(1S1) <-> He(5FG3) + He(1S1)               |constantRateCoeff          |1e-10    |
+He(6FGH1) + He(1S1) <-> He(6FGH3) + He(1S1)             |constantRateCoeff          |1e-10    |
+He(7FGHI1) +  He(1S1) <-> He(7FGHI3) + He(1S1)          |constantRateCoeff          |1e-10    |
+%--------------------------------------------------------------------------                   |
+
+
+%(12a,b) three-body ion conversion, and reverse reaction
+He(+,1S2) + 2He(1S1) -> He2(+,2S3) + He(1S1)           |powerGasTemp              |4.2894e-42, -0.6      |
+He2(+,2S3) + He(1S1) -> He(+,1S2) + 2He(1S1)           |modifiedArrheniusGasTemp  |1.4e-12, -0.67, -28100     |
+%--------------------------------------------------------------------------
+
+%(13-4) creation of He2(exc)
+% He(2P3) + 2He(1S1) -> He2(exc) + He(1S1)               |constantRateCoeff        |1.6e-44         |
+% He(2S3) + 2He(1S1) -> He2(exc) + He(1S1)               |constantRateCoeff        |1.5e-46         |
+%--------------------------------------------------------------------------
+
+%(15) dissociation of He2(exc)
+% He2(exc) + He(1S1) -> He(2P3) + 2He(1S1)               |constantRateCoeff        |3.6e-20        |
+%--------------------------------------------------------------------------
+
+%(16) radiative transitions |fji - oscillator forces
+He(2P1) -> He(1S1)                                     |radiationImprisonmentOscStrength          |2.76200e-01   |
+He(3P1) -> He(1S1)                                     |radiationImprisonmentOscStrength          |7.34000e-02   |
+He(4P1) -> He(1S1)                                     |radiationImprisonmentOscStrength          |3.02000e-02   |
+He(5P1) -> He(1S1)                                     |radiationImprisonmentOscStrength          |1.53000e-02   |
+He(6P1) -> He(1S1)                                     |radiationImprisonmentOscStrength          |8.43000e-03   |
+He(7P1) -> He(1S1)                                     |radiationImprisonmentOscStrength          |5.83000e-03   |
+He(2P3) -> He(2S3)                                     |radiationImprisonmentOscStrength          |5.37400e-01   |
+He(3P3) -> He(2S3)                                     |radiationImprisonmentOscStrength          |6.30000e-02   |
+He(4P3) -> He(2S3)                                     |einsteinCoeffFromOscStrength          |2.54000e-02              |
+He(5P3) -> He(2S3)                                     |einsteinCoeffFromOscStrength          |1.24000e-02              |
+He(6P3) -> He(2S3)                                     |einsteinCoeffFromOscStrength          |6.94600e-03              |
+He(7P3) -> He(2S3)                                     |einsteinCoeffFromOscStrength          |4.39000e-03              |
+He(2P1) -> He(2S1)                                     |radiationImprisonmentOscStrength          |3.43200e-01   |
+He(3P1) -> He(2S1)                                     |einsteinCoeffFromOscStrength          |1.48000e-01              |
+He(4P1) -> He(2S1)                                     |einsteinCoeffFromOscStrength          |4.80000e-02              |
+He(5P1) -> He(2S1)                                     |einsteinCoeffFromOscStrength          |2.18000e-02              |
+He(6P1) -> He(2S1)                                     |einsteinCoeffFromOscStrength          |1.18400e-02              |
+He(7P1) -> He(2S1)                                     |einsteinCoeffFromOscStrength          |7.28000e-03              |
+He(3S3) -> He(2P3)                                     |einsteinCoeffFromOscStrength          |6.94000e-02              |
+He(3D3) -> He(2P3)                                     |radiationImprisonmentOscStrength          |6.16000e-01   |
+He(4S3) -> He(2P3)                                     |einsteinCoeffFromOscStrength          |1.06000e-02              |
+He(4D3) -> He(2P3)                                     |einsteinCoeffFromOscStrength          |1.24000e-01              |
+He(5S3) -> He(2P3)                                     |einsteinCoeffFromOscStrength          |3.78000e-03              |
+He(5D3) -> He(2P3)                                     |einsteinCoeffFromOscStrength          |4.75000e-02              |
+He(6S3) -> He(2P3)                                     |einsteinCoeffFromOscStrength          |1.83000e-03              |
+He(6D3) -> He(2P3)                                     |einsteinCoeffFromOscStrength          |2.37000e-02              |
+He(7S3) -> He(2P3)                                     |einsteinCoeffFromOscStrength          |1.05000e-03              |
+He(7D3) -> He(2P3)                                     |einsteinCoeffFromOscStrength          |1.37000e-02              |
+He(3S1) -> He(2P1)                                     |einsteinCoeffFromOscStrength          |4.78000e-02              |
+He(3D1) -> He(2P1)                                     |einsteinCoeffFromOscStrength          |7.10370e-01              |
+He(4S1) -> He(2P1)                                     |einsteinCoeffFromOscStrength          |8.47000e-03              |
+He(4D1) -> He(2P1)                                     |einsteinCoeffFromOscStrength          |1.21000e-01              |
+He(5S1) -> He(2P1)                                     |einsteinCoeffFromOscStrength          |3.16000e-03              |
+He(5D1) -> He(2P1)                                     |einsteinCoeffFromOscStrength          |4.34000e-02              |
+He(6S1) -> He(2P1)                                     |einsteinCoeffFromOscStrength          |1.55900e-03              |
+He(6D1) -> He(2P1)                                     |einsteinCoeffFromOscStrength          |2.10500e-02              |
+He(7S1) -> He(2P1)                                     |einsteinCoeffFromOscStrength          |8.96000e-04              |
+He(7D1) -> He(2P1)                                     |einsteinCoeffFromOscStrength          |1.18900e-02              |
+He(3P3) -> He(3S3)                                     |einsteinCoeffFromOscStrength          |8.89000e-01              |
+He(4P3) -> He(3S3)                                     |einsteinCoeffFromOscStrength          |4.96000e-02              |
+He(5P3) -> He(3S3)                                     |einsteinCoeffFromOscStrength          |2.26000e-02              |
+He(6P3) -> He(3S3)                                     |einsteinCoeffFromOscStrength          |1.18000e-02              |
+He(7P3) -> He(3S3)                                     |einsteinCoeffFromOscStrength          |7.13000e-03              |
+He(3P1) -> He(3S1)                                     |einsteinCoeffFromOscStrength          |6.25000e-01              |
+He(4P1) -> He(3S1)                                     |einsteinCoeffFromOscStrength          |1.43000e-01              |
+He(5P1) -> He(3S1)                                     |einsteinCoeffFromOscStrength          |5.01000e-02              |
+He(6P1) -> He(3S1)                                     |einsteinCoeffFromOscStrength          |2.39800e-02              |
+He(7P1) -> He(3S1)                                     |einsteinCoeffFromOscStrength          |1.38000e-02              |
+He(3D3) -> He(3P3)                                     |einsteinCoeffFromOscStrength          |1.12500e-01              |
+He(4S3) -> He(3P3)                                     |einsteinCoeffFromOscStrength          |1.45000e-01              |
+He(4D3) -> He(3P3)                                     |einsteinCoeffFromOscStrength          |4.78000e-01              |
+He(5S3) -> He(3P3)                                     |einsteinCoeffFromOscStrength          |2.25000e-02              |
+He(5D3) -> He(3P3)                                     |einsteinCoeffFromOscStrength          |1.24700e-01              |
+He(6S3) -> He(3P3)                                     |einsteinCoeffFromOscStrength          |8.22200e-03              |
+He(6D3) -> He(3P3)                                     |einsteinCoeffFromOscStrength          |5.31000e-02              |
+He(7S3) -> He(3P3)                                     |einsteinCoeffFromOscStrength          |4.08000e-03              |
+He(7D3) -> He(3P3)                                     |einsteinCoeffFromOscStrength          |2.82000e-02              |
+He(4P3) -> He(3D3)                                     |einsteinCoeffFromOscStrength          |2.21000e-02              |
+He(4F3) -> He(3D3)                                     |einsteinCoeffFromOscStrength          |1.01500e+00              |
+He(5P3) -> He(3D3)                                     |einsteinCoeffFromOscStrength          |4.10000e-03              |
+He(5FG3) -> He(3D3)                                    |einsteinCoeffFromOscStrength          |1.57300e-01              |
+He(6P3) -> He(3D3)                                     |einsteinCoeffFromOscStrength          |1.52000e-03              |
+He(6FGH3) -> He(3D3)                                   |einsteinCoeffFromOscStrength          |5.44000e-02              |
+He(7P3) -> He(3D3)                                     |einsteinCoeffFromOscStrength          |7.11000e-04              |
+He(7FGHI3) -> He(3D3)                                  |einsteinCoeffFromOscStrength          |2.57000e-02              |
+He(3P1) -> He(3D1)                                     |einsteinCoeffFromOscStrength          |1.27000e-02              |
+He(4F1) -> He(3D1)                                     |einsteinCoeffFromOscStrength          |1.01500e+00              |
+He(4P1) -> He(3D1)                                     |einsteinCoeffFromOscStrength          |9.17000e-03              |
+He(5FG1) -> He(3D1)                                    |einsteinCoeffFromOscStrength          |1.57200e-01              |
+He(5P1) -> He(3D1)                                     |einsteinCoeffFromOscStrength          |1.87000e-03              |
+He(6FGH1) -> He(3D1)                                   |einsteinCoeffFromOscStrength          |5.43000e-02              |
+He(6P1) -> He(3D1)                                     |einsteinCoeffFromOscStrength          |7.11000e-04              |
+He(7FGHI1) -> He(3D1)                                  |einsteinCoeffFromOscStrength          |2.57000e-02              |
+He(7P1) -> He(3D1)                                     |einsteinCoeffFromOscStrength          |3.67000e-04              |
+He(4S1) -> He(3P1)                                     |einsteinCoeffFromOscStrength          |1.02000e-01              |
+He(4D1) -> He(3P1)                                     |einsteinCoeffFromOscStrength          |6.48000e-01              |
+He(5S1) -> He(3P1)                                     |einsteinCoeffFromOscStrength          |1.84000e-02              |
+He(5D1) -> He(3P1)                                     |einsteinCoeffFromOscStrength          |1.41300e-01              |
+He(6S1) -> He(3P1)                                     |einsteinCoeffFromOscStrength          |7.00000e-03              |
+He(6D1) -> He(3P1)                                     |einsteinCoeffFromOscStrength          |5.63000e-02              |
+He(7S1) -> He(3P1)                                     |einsteinCoeffFromOscStrength          |3.53000e-03              |
+He(7D1) -> He(3P1)                                     |einsteinCoeffFromOscStrength          |2.89000e-02              |
+He(4P3) -> He(4S3)                                     |einsteinCoeffFromOscStrength          |1.21400e+00              |
+He(5P3) -> He(4S3)                                     |einsteinCoeffFromOscStrength          |4.41000e-02              |
+He(6P3) -> He(4S3)                                     |einsteinCoeffFromOscStrength          |2.15000e-02              |
+He(7P3) -> He(4S3)                                     |einsteinCoeffFromOscStrength          |1.21000e-02              |
+He(4P1) -> He(4S1)                                     |einsteinCoeffFromOscStrength          |8.57000e-01              |
+He(5P1) -> He(4S1)                                     |einsteinCoeffFromOscStrength          |1.45800e-01              |
+He(6P1) -> He(4S1)                                     |einsteinCoeffFromOscStrength          |5.25000e-02              |
+He(7P1) -> He(4S1)                                     |einsteinCoeffFromOscStrength          |2.69000e-02              |
+He(4D3) -> He(4P3)                                     |einsteinCoeffFromOscStrength          |2.01000e-01              |
+He(5S3) -> He(4P3)                                     |einsteinCoeffFromOscStrength          |2.23000e-01              |
+He(5D3) -> He(4P3)                                     |einsteinCoeffFromOscStrength          |1.34500e+00              |
+He(6S3) -> He(4P3)                                     |einsteinCoeffFromOscStrength          |3.46000e-03              |
+He(6D3) -> He(4P3)                                     |einsteinCoeffFromOscStrength          |1.24000e-01              |
+He(7S3) -> He(4P3)                                     |einsteinCoeffFromOscStrength          |1.28000e-02              |
+He(7D3) -> He(4P3)                                     |einsteinCoeffFromOscStrength          |5.53000e-02              |
+He(4F3) -> He(4D3)                                     |einsteinCoeffFromOscStrength          |3.31600e-03              |
+He(5P3) -> He(4D3)                                     |einsteinCoeffFromOscStrength          |5.30000e-02              |
+He(5FG3) -> He(4D3)                                    |einsteinCoeffFromOscStrength          |8.83000e-01              |
+He(6P3) -> He(4D3)                                     |einsteinCoeffFromOscStrength          |1.02000e-02              |
+He(6FGH3) -> He(4D3)                                   |einsteinCoeffFromOscStrength          |1.86000e-01              |
+He(7P3) -> He(4D3)                                     |einsteinCoeffFromOscStrength          |3.96000e-03              |
+He(7FGHI3) -> He(4D3)                                  |einsteinCoeffFromOscStrength          |7.24000e-02              |
+He(4F1) -> He(4D1)                                     |einsteinCoeffFromOscStrength          |2.53000e-03              |
+He(4P1) -> He(4D1)                                     |einsteinCoeffFromOscStrength          |2.40000e-02              |
+He(5FG1) -> He(4D1)                                    |einsteinCoeffFromOscStrength          |8.85000e-01              |
+He(5P1) -> He(4D1)                                     |einsteinCoeffFromOscStrength          |2.35000e-02              |
+He(6FGH1) -> He(4D1)                                   |einsteinCoeffFromOscStrength          |1.86000e-01              |
+He(6P1) -> He(4D1)                                     |einsteinCoeffFromOscStrength          |5.01000e-03              |
+He(7FGHI1) -> He(4D1)                                  |einsteinCoeffFromOscStrength          |7.23000e-02              |
+He(7P1) -> He(4D1)                                     |einsteinCoeffFromOscStrength          |2.01000e-02              |
+He(5D3) -> He(4F3)                                     |einsteinCoeffFromOscStrength          |6.85000e-03              |
+He(5FG3) -> He(4F3)                                    |einsteinCoeffFromOscStrength          |6.73000e-01              |
+He(6D3) -> He(4F3)                                     |einsteinCoeffFromOscStrength          |1.22000e-03              |
+He(6FGH3) -> He(4F3)                                   |einsteinCoeffFromOscStrength          |9.30000e-02              |
+He(7D3) -> He(4F3)                                     |einsteinCoeffFromOscStrength          |4.38000e-04              |
+He(7FGHI3) -> He(4F3)                                  |einsteinCoeffFromOscStrength          |2.92000e-02              |
+He(5D1) -> He(4F1)                                     |einsteinCoeffFromOscStrength          |2.27000e-03              |
+He(5FG1) -> He(4F1)                                    |einsteinCoeffFromOscStrength          |6.73000e-01              |
+He(6D1) -> He(4F1)                                     |einsteinCoeffFromOscStrength          |4.03000e-04              |
+He(6FGH1) -> He(4F1)                                   |einsteinCoeffFromOscStrength          |9.30000e-02              |
+He(7D1) -> He(4F1)                                     |einsteinCoeffFromOscStrength          |1.46000e-04              |
+He(7FGHI1) -> He(4F1)                                  |einsteinCoeffFromOscStrength          |2.92000e-02              |
+He(5S1) -> He(4P1)                                     |einsteinCoeffFromOscStrength          |1.58000e-01              |
+He(5D1) -> He(4P1)                                     |einsteinCoeffFromOscStrength          |6.47400e-01              |
+He(6S1) -> He(4P1)                                     |einsteinCoeffFromOscStrength          |2.87000e-02              |
+He(6D1) -> He(4P1)                                     |einsteinCoeffFromOscStrength          |1.52800e-01              |
+He(7S1) -> He(4P1)                                     |einsteinCoeffFromOscStrength          |1.10000e-02              |
+He(7D1) -> He(4P1)                                     |einsteinCoeffFromOscStrength          |6.37000e-02              |
+He(5P3) -> He(5S3)                                     |einsteinCoeffFromOscStrength          |1.53000e+00              |
+He(6P3) -> He(5S3)                                     |einsteinCoeffFromOscStrength          |4.13000e-02              |
+He(7P3) -> He(5S3)                                     |einsteinCoeffFromOscStrength          |2.19000e-02              |
+He(5P1) -> He(5S1)                                     |einsteinCoeffFromOscStrength          |1.08300e+00              |
+He(6P1) -> He(5S1)                                     |einsteinCoeffFromOscStrength          |1.52200e-01              |
+He(7P1) -> He(5S1)                                     |einsteinCoeffFromOscStrength          |5.68000e-02              |
+He(5D3) -> He(5P3)                                     |einsteinCoeffFromOscStrength          |2.81000e-01              |
+He(6S3) -> He(5P3)                                     |einsteinCoeffFromOscStrength          |3.01000e-01              |
+He(6D3) -> He(5P3)                                     |einsteinCoeffFromOscStrength          |4.29000e-01              |
+He(7S3) -> He(5P3)                                     |einsteinCoeffFromOscStrength          |4.70000e-02              |
+He(7D3) -> He(5P3)                                     |einsteinCoeffFromOscStrength          |1.26000e-01              |
+He(5FG3) -> He(5D3)                                    |einsteinCoeffFromOscStrength          |7.60000e-03              |
+He(6P3) -> He(5D3)                                     |einsteinCoeffFromOscStrength          |8.81200e-03              |
+He(6FGH3) -> He(5D3)                                   |einsteinCoeffFromOscStrength          |8.34600e-01              |
+He(7P3) -> He(5D3)                                     |einsteinCoeffFromOscStrength          |1.76000e-02              |
+He(7FGHI3) -> He(5D3)                                  |einsteinCoeffFromOscStrength          |1.96000e-01              |
+He(5FG1) -> He(5D1)                                    |einsteinCoeffFromOscStrength          |8.20000e-04              |
+He(5P1) -> He(5D1)                                     |einsteinCoeffFromOscStrength          |3.45000e-02              |
+He(6FGH1) -> He(5D1)                                   |einsteinCoeffFromOscStrength          |8.37000e-01              |
+He(6P1) -> He(5D1)                                     |einsteinCoeffFromOscStrength          |4.09600e-02              |
+He(7FGHI1) -> He(5D1)                                  |einsteinCoeffFromOscStrength          |1.96000e-01              |
+He(7P1) -> He(5D1)                                     |einsteinCoeffFromOscStrength          |9.21000e-03              |
+He(6D3) -> He(5FG3)                                    |einsteinCoeffFromOscStrength          |1.40200e-02              |
+He(6FGH3) -> He(5FG3)                                  |einsteinCoeffFromOscStrength          |7.31000e-01              |
+He(7D3) -> He(5FG3)                                    |einsteinCoeffFromOscStrength          |1.51000e-03              |
+He(7FGHI3) -> He(5FG3)                                 |einsteinCoeffFromOscStrength          |1.07000e-01              |
+He(6D1) -> He(5FG1)                                    |einsteinCoeffFromOscStrength          |4.63200e-03              |
+He(6FGH1) -> He(5FG1)                                  |einsteinCoeffFromOscStrength          |7.31000e-01              |
+He(7D1) -> He(5FG1)                                    |einsteinCoeffFromOscStrength          |5.03000e-04              |
+He(7FGHI1) -> He(5FG1)                                 |einsteinCoeffFromOscStrength          |1.07000e-01              |
+He(6S1) -> He(5P1)                                     |einsteinCoeffFromOscStrength          |2.15400e-01              |
+He(6D1) -> He(5P1)                                     |einsteinCoeffFromOscStrength          |6.69500e-01              |
+He(7S1) -> He(5P1)                                     |einsteinCoeffFromOscStrength          |3.90000e-02              |
+He(7D1) -> He(5P1)                                     |einsteinCoeffFromOscStrength          |1.64000e-01              |
+He(6P3) -> He(6S3)                                     |einsteinCoeffFromOscStrength          |1.84200e+00              |
+He(7P3) -> He(6S3)                                     |einsteinCoeffFromOscStrength          |4.28000e-02              |
+He(6P1) -> He(6S1)                                     |einsteinCoeffFromOscStrength          |1.30500e+00              |
+He(7P1) -> He(6S1)                                     |einsteinCoeffFromOscStrength          |1.66000e-01              |
+He(6D3) -> He(6P3)                                     |einsteinCoeffFromOscStrength          |3.54300e-01              |
+He(7S3) -> He(6P3)                                     |einsteinCoeffFromOscStrength          |3.84000e-01              |
+He(7D3) -> He(6P3)                                     |einsteinCoeffFromOscStrength          |4.36000e-01              |
+He(6FGH3) -> He(6D3)                                   |einsteinCoeffFromOscStrength          |1.20000e-02              |
+He(7P3) -> He(6D3)                                     |einsteinCoeffFromOscStrength          |1.28000e-01              |
+He(7FGHI3) -> He(6D3)                                  |einsteinCoeffFromOscStrength          |8.25000e-01              |
+He(6P1) -> He(6D1)                                     |einsteinCoeffFromOscStrength          |2.40300e-02              |
+He(7S3) -> He(6D1)                                     |einsteinCoeffFromOscStrength          |4.45000e-02              |
+He(7FGHI1) -> He(6D1)                                  |einsteinCoeffFromOscStrength          |8.28000e-01              |
+He(7P1) -> He(6D1)                                     |einsteinCoeffFromOscStrength          |6.20000e-02              |
+He(7D3) -> He(6FGH3)                                   |einsteinCoeffFromOscStrength          |8.39000e-04              |
+He(7FGHI3) -> He(6FGH3)                                |einsteinCoeffFromOscStrength          |8.05000e-01              |
+He(7D1) -> He(6FGH1)                                   |einsteinCoeffFromOscStrength          |2.80000e-03              |
+He(7FGHI1) -> He(6FGH1)                                |einsteinCoeffFromOscStrength          |8.05000e-01              |
+He(7S1) -> He(6P1)                                     |einsteinCoeffFromOscStrength          |2.73000e-01              |
+He(7D1) -> He(6P1)                                     |einsteinCoeffFromOscStrength          |7.08000e-01              |
+%--------------------------------------------------------------------------
+
+%--- TRANSPORT high pressure
+% He(2S3) + wall -> He(1S1)                              |binaryDiff                   |1        |
+% He(2S1) + wall -> He(1S1)                              |binaryDiff                   |1        |
+% He2(exc) + wall -> 2He(1S1)                            |binaryDiff                   |1        |
+% He(+,1S2) + wall -> He(1S1)                            |classicalAmbipolarDiff       |1        |
+% He2(+,2S3) + wall -> 2He(1S1)                          |classicalAmbipolarDiff       |1        |
+%--------------------------------------------------------------------------
+
+%--- TRANSPORT low pressure
+He(2S3) + wall -> He(1S1)                              |binaryDiff                   |1           |
+He(2S1) + wall -> He(1S1)                              |binaryDiff                   |1           |
+% He2(exc) + wall -> 2He(1S1)                            |binaryDiff                   |1         |
+He(+,1S2) + wall -> He(1S1)                            |effectiveAmbipolarDiff       |false       |
+He2(+,2S3) + wall -> He(1S1)+ He(1S1)                          |effectiveAmbipolarDiff       |false       |
+%--------------------------------------------------------------------------
