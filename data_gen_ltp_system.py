@@ -142,9 +142,9 @@ def main():
         config = load_config('configs/ltp_system_config.yaml')
         
         input_ref = [133.322, 0.001, 0.01]
-        p_range  = [0.1, 10]        # [1.3332e1, 1.3332e3] Pa
-        I_range = [5, 50]           # [2       , 44]     mA
-        R_range  = [0.4,  2]        # [4e-3    , 2e-2]     m
+        p_range  = [0.1, 10]        # [13.332, 1333.2] Pa = [0.1, 10] Torr
+        I_range =  [5, 50]          # [5      , 50    ] mA
+        R_range  = [0.4,  2]        # [4       , 20    ] mm
 
         get_dataset(config, input_ref, p_range, I_range, R_range)
     
