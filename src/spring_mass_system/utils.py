@@ -252,7 +252,7 @@ def get_target_trajectory(config, n_time_steps, initial_state):
         for _ in range(N_RK_STEPS):
             with torch.no_grad():  
                 # Prediction of RK is the target: only compute one time step, ie, the next state
-                next_state = rk8_step(config, current_state, dt_RK)
+                next_state = rk4_step(config, current_state, dt_RK)
                 current_state = next_state
 
         # Extract and store output states

@@ -48,7 +48,7 @@ def generate_dataset(config, column_names):
         for _ in range(N_sequential_steps):
             
             # Solve from t_start to t_start + dt
-            next_state = rk8_step(config, current_state, dt_RK)
+            next_state = rk4_step(config, current_state, dt_RK)
 
             # Update next state
             current_state = next_state
