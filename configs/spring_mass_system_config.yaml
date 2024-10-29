@@ -40,5 +40,9 @@ plotting:
   PLOT_LOSS_CURVES: False
   PRINT_LOSS_VALUES: True
 
+fig_3_options:
+  rerun_results: False
+  output_dir: "output/spring_mass_system/checkpoints/fig_3/"
+
 
 

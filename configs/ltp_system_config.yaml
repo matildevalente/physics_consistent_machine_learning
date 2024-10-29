@@ -1,6 +1,6 @@
 dataset_generation:
   delimiter: ' '
-  n_simulations: 25000
+  n_simulations: 10
   loki_path: "src/ltp_system/dataset_gen/LoKI_v3.1.0-v2_cycleChanges"
   chem_file: "oxygen_novib.chem"  # 2. Define Reaction Scheme and Setup Files
   chem_file_dir: "src/ltp_system/dataset_gen/oxygen_novib.chem"
@@ -21,32 +21,34 @@ data_prep:
 
 nn_model:
   RETRAIN_MODEL: False
+  APPLY_EARLY_STOPPING: True
   hidden_sizes: [451, 315, 498, 262]
   num_epochs:  600 
   learning_rate: 0.0001
   activation_fns: ["leaky_relu","leaky_relu","leaky_relu", "leaky_relu"]
   batch_size: 10
   num_arquitectures: 300                     # architectures explored in optimization
-  training_threshold: 0.0001
+  training_threshold: 0.000001
   n_bootstrap_models: 30
   lambda_physics: [0, 0, 0]
 
 pinn_model:
   RETRAIN_MODEL: False
   OPTIMIZE_ARC: False
+  APPLY_EARLY_STOPPING: True
   hidden_sizes: [451, 315, 498, 262]
   activation_fns: ["leaky_relu","leaky_relu","leaky_relu", "leaky_relu"]
   num_epochs:  600
   learning_rate: 0.0001
   lambda_physics: [0.005, 0.005, 0.005]
   batch_size: 10
-  training_threshold: 0.0001
+  training_threshold: 0.000001
   n_bootstrap_models: 30
 
 
 plotting:
   output_dir: "src/ltp_system/figures/"
-  PLOT_LOSS_CURVES: False
+  PLOT_LOSS_CURVES: True
   PRINT_LOSS_VALUES: False
   palette: ['#0b63a0', '#FFAE0D', '#006F09', '#2DF33D', '#B51D1D', '#FF6969' ]
   barplot_palette: ['#1d67a9', '#ce5f2c', '#c46f9d', '#1a916b', '#df9a31', '#8c564b', '#9467bd', '#17becf']
