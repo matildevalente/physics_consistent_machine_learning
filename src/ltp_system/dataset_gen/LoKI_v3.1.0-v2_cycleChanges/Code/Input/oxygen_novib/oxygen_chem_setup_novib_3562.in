@@ -8,15 +8,15 @@ workingConditions:
   reducedField: 40                      % in Td
   electronTemperature: 1                % in eV
   excitationFrequency: 0                % in Hz
-  gasPressure: 594.9139               % in Pa
+  gasPressure: 994.0104               % in Pa
   gasTemperature: 600                   % in K   (average gas temperature)
   wallTemperature: 323.15               % in K   (wall temperature)
   extTemperature: 300                   % in K   (external temperature)
   surfaceSiteDensity: 1e19              % in m-2 (used for surface kinetics)
-  electronDensity: 2186710507521081.25000000 % in m-3
+  electronDensity: 2938867458495828.00000000 % in m-3
   chamberLength: 0.525                  % in m
-  chamberRadius: 0.00671250 % in m
-  dischargeCurrent: 0.00604422             % in A
+  chamberRadius: 0.01496369 % in m
+  dischargeCurrent: 0.02558173             % in A
   % dischargePowerPerLength: 195          % in W/m
 
 % --- configuration of the electron kinetics ---

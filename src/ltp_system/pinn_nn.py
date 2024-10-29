@@ -186,7 +186,7 @@ def aggregate_losses_(losses_train, losses_train_physics, losses_train_data, los
     return losses_dict
 
 
-def get_trained_bootstraped_models(config_model, config_plotting, preprocessed_data, loss_fn, checkpoint_dir, device, val_loader, train_data):
+def get_trained_bootstraped_models(config_model, config_plotting, preprocessed_data, loss_fn, checkpoint_dir, device, val_loader, train_data, seed):
     
     if config_model['lambda_physics'] == [0,0,0]:
         model_name = "NN"
@@ -199,11 +199,16 @@ def get_trained_bootstraped_models(config_model, config_plotting, preprocessed_d
     models_list = []
     losses_train_physics, losses_train_data, losses_train_total, losses_val = [], [], [], []
 
+    print(f"Training Dataset Size: {len(train_data)}")
+
     start_time = time.time()
   
     for idx in tqdm(range(n_bootstrap_models), desc=f"Training Bootstraped {model_name}"):
         # Each bootstraped model is initialized w a different seed
-        set_seed(idx + 1)
+        if(seed == 'default'):
+            set_seed(idx + 1)
+        else:
+            set_seed(seed)
         
         # Create a new instance of the neural network
         model = NeuralNetwork(config_model).to(device)
@@ -273,10 +278,11 @@ def train_model(config_plotting, config_model, model, preprocessed_data, loss_fn
                 _print_epoch_summary(epoch, train_loss_dict, val_loss)
         
         # --------------------------- Check if the convergence criterion is met & early stopping
-        """if stop_training(val_losses, training_threshold):
-            if(config_plotting['PRINT_LOSS_VALUES']):
-                print("Validation loss converged. Stopping training.\n")
-            break  """
+        if(config_model['APPLY_EARLY_STOPPING']):
+            if stop_training(val_losses, training_threshold):
+                if(config_plotting['PRINT_LOSS_VALUES']):
+                    print("Validation loss converged. Stopping training.\n")
+                break  
         
     
     return {

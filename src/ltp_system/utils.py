@@ -104,5 +104,83 @@ def load_dataset(config, dataset_dir):
     except FileNotFoundError:
         raise FileNotFoundError("Dataset file not found. Please generate the dataset or provide the correct file path.")
 
+# 
+def select_random_rows(input_file, n, temp_file = 'data/ltp_system/temp.txt'):
+    try:
+        # Read all lines from the input file
+        with open(input_file, 'r') as f:
+            lines = f.readlines()
+        
+        # Ensure N is not larger than the number of lines
+        n = min(n, len(lines))
+        
+        # Randomly select N lines
+        selected_lines = random.sample(lines, n)
+        
+        # Create the directory if it doesn't exist
+        os.makedirs(os.path.dirname(temp_file), exist_ok=True)
+        
+        # Write the selected lines to the temp file
+        with open(temp_file, 'w') as f:
+            f.writelines(selected_lines)
+        
+        return temp_file
+    except FileNotFoundError:
+        return False, f"Error: The input file '{input_file}' was not found."
+    except PermissionError:
+        return False, f"Error: Permission denied when trying to create or write to '{temp_file}'."
+    except Exception as e:
+        return False, f"An unexpected error occurred: {str(e)}"
 
 
+#
+def split_dataset(input_file, n_testing_points, output_dir=None, testing_file=None, training_file=None):
+    try:
+        # Read all lines from the input file
+        with open(input_file, 'r') as f:
+            lines = f.readlines()
+
+        # Ensure n_testing_points is not larger than the total number of lines
+        total_lines = len(lines)
+        if n_testing_points >= total_lines:
+            raise ValueError(f"n_testing_points ({n_testing_points}) must be less than the total number of lines in the dataset ({total_lines})")
+
+        # Randomly select n_testing_points for the testing set
+        testing_indices = set(random.sample(range(total_lines), n_testing_points))
+
+        # Determine output file paths
+        if output_dir is None:
+            output_dir = os.path.dirname(input_file)
+        os.makedirs(output_dir, exist_ok=True)
+
+        if testing_file is None:
+            testing_file = os.path.join(output_dir, 'testing_data.txt')
+        if training_file is None:
+            training_file = os.path.join(output_dir, 'training_data.txt')
+
+        # Write the data to testing and training files
+        with open(testing_file, 'w') as test_f, open(training_file, 'w') as train_f:
+            for i, line in enumerate(lines):
+                if i in testing_indices:
+                    test_f.write(line)
+                else:
+                    train_f.write(line)
+
+        print(f"Dataset split successfully:")
+        print(f"- Testing data ({n_testing_points} points) saved to: {testing_file}")
+        print(f"- Training data ({total_lines - n_testing_points} points) saved to: {training_file}")
+
+        # Return the paths of the created files
+        return testing_file, training_file
+
+    except FileNotFoundError:
+        print(f"Error: The input file '{input_file}' was not found.")
+    except PermissionError:
+        print(f"Error: Permission denied when trying to create or write to the output files.")
+    except ValueError as ve:
+        print(f"Error: {str(ve)}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {str(e)}")
+
+    # Return None values if an error occurred
+    return None, None

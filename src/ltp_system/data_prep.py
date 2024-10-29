@@ -17,6 +17,7 @@ class DataPreprocessor():
   def __init__(self, config):
     self.output_features = config['dataset_generation']['output_features']
     self.input_features  = config['dataset_generation']['input_features']
+    
     self.fraction_train = config['data_prep']['fraction_train']
     self.fraction_val   = config['data_prep']['fraction_val']
     self.fraction_test  = config['data_prep']['fraction_test']

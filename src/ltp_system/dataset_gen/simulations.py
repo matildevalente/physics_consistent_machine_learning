@@ -1,11 +1,8 @@
 import os
 import re
 import pdb
-import sys
-import time
-import random
+import shutil 
 import numpy as np
-import pandas as pd
 
 
 #-----------------------------------------------------------------------------------------------------
@@ -187,7 +184,14 @@ class Simulations():
 
                 # Set outputs[i] to NaN
                 outputs[i] = densities[i] + temperatures[i] + swarm_parameters[i] + ne_parameters[i]
-
+            
+            # Delete the folder after processing all files for the current simulation
+            try:
+                shutil.rmtree(folder_path)  
+                print(f"Deleted folder: {folder_path}")
+            except Exception as e:
+                print(f"Error deleting folder {folder_path}: {e}")
+        
         # Convert lists to NumPy arrays
         densities = np.array(densities, dtype=object)
         temperatures = np.array(temperatures, dtype=object)
@@ -238,8 +242,10 @@ class Simulations():
 
         # Write the data file
         with open(dir + filename, 'w') as file:
+            
             for i in range(self.nsimulations):
-                # check if the simulation went ok or has nan values
+                
+                # check if the simulation was successful. if not add nan values
                 if isinstance(outputs[i], list):
                     # write the k values
                     if self.parameters.k_set is not None:

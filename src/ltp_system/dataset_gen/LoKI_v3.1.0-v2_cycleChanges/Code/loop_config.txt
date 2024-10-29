@@ -1,2 +1,2 @@
-25000
+10
 oxygen_novib/oxygen_chem_setup_novib_

@@ -10,7 +10,7 @@ from typing import Dict, Any, Tuple
 from sklearn.metrics import mean_absolute_percentage_error, mean_squared_error
 
 from src.ltp_system.utils import savefig
-from src.ltp_system.utils import set_seed, load_dataset, load_config
+from src.ltp_system.utils import set_seed, load_dataset, load_config, select_random_rows, split_dataset
 from src.ltp_system.data_prep import DataPreprocessor, LoadDataset, setup_dataset_with_preproprocessing_info
 from src.ltp_system.pinn_nn import get_trained_bootstraped_models, load_checkpoints, NeuralNetwork, get_average_predictions, get_predictive_uncertainty
 from src.ltp_system.projection import get_average_predictions_projected,constraint_p_i_ne
@@ -57,14 +57,9 @@ def load_data(test_filename, data_preprocessing_info):
 def generate_config_(config, hidden_sizes, activation_fns, options):
     return {
         'dataset_generation' : config['dataset_generation'],
-        'data_prep' : {
-            'fraction_train': 0.8,    
-            'fraction_val': 0.1,    
-            'fraction_test': 0.1,    
-            'skew_threshold_down': 0 , 
-            'skew_threshold_up': 3,
-        },
+        'data_prep' : config['data_prep'],
         'nn_model': {
+            'APPLY_EARLY_STOPPING': options['APPLY_EARLY_STOPPING'],
             'RETRAIN_MODEL'      : options['RETRAIN_MODEL'],
             'hidden_sizes'       : hidden_sizes,
             'activation_fns'     : activation_fns,
@@ -85,14 +80,14 @@ def generate_config_(config, hidden_sizes, activation_fns, options):
     }
     
 # train the nn for a chosen architecture or load the parameters if it has been trained 
-def get_trained_nn(config, data_preprocessing_info, idx_dataset, train_data, val_loader):
+def get_trained_nn(config, data_preprocessing_info, idx_dataset, idx_sample, train_data, val_loader):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    checkpoint_dir = os.path.join('output', 'ltp_system', 'checkpoints', 'different_datasets', f'dataset_{idx_dataset}')
+    checkpoint_dir = os.path.join('output', 'ltp_system', 'checkpoints', 'different_datasets', f'dataset_{idx_dataset}_sample_{idx_sample}')
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     if config['nn_model']['RETRAIN_MODEL']:
-        nn_models, nn_losses_dict, training_time = get_trained_bootstraped_models(config['nn_model'], config['plotting'], data_preprocessing_info, nn.MSELoss(), checkpoint_dir, device, val_loader, train_data)
+        nn_models, nn_losses_dict, training_time = get_trained_bootstraped_models(config['nn_model'], config['plotting'], data_preprocessing_info, nn.MSELoss(), checkpoint_dir, device, val_loader, train_data, seed = 'default')
 
         return nn_models, nn_losses_dict, device, training_time
     else:
@@ -118,20 +113,22 @@ def compute_approximate_loki_time(dataset_size, loki_reference_time):
 
     return ( dataset_size * loki_reference_time ) / 100
 
-
 # the the mape and mape uncertainty of the nn aggregated model
 def evaluate_model(model_predictions_norm, model_pred_uncertainties, targets_norm):
 
-    targets_norm_ = targets_norm.clone() 
-    model_pred_uncertainties_ = model_pred_uncertainties.clone()
+    # perform a copy to avoid modifying the original arrays
+    model_predictions_norm_ = (np.array(model_predictions_norm)).copy()
+    model_pred_uncertainties_ = (np.array(model_pred_uncertainties)).copy()
+    targets_norm_ = (np.array(targets_norm)).copy()
+
     m = len(model_pred_uncertainties)
 
     # compute the mape and the uncertainty 
-    mape_j = np.mean(np.abs((targets_norm_ - model_predictions_norm) / targets_norm_)) * 100
+    mape_j = np.mean(np.abs((targets_norm_ - model_predictions_norm_) / targets_norm_)) * 100
     sigma_mape_j = np.sqrt(np.mean(np.square(model_pred_uncertainties_ / targets_norm_))) * 100
     
     # compute the rmse and the uncertainty 
-    rmse_j = np.sqrt(np.mean((targets_norm_ - model_predictions_norm) ** 2))
+    rmse_j = np.sqrt(np.mean((targets_norm_ - model_predictions_norm_) ** 2))
     sigma_rmse_j = (1 / np.sqrt(m)) * np.sqrt(np.sum(np.square(model_pred_uncertainties_)))
 
     return mape_j, sigma_mape_j, rmse_j, sigma_rmse_j
@@ -139,98 +136,20 @@ def evaluate_model(model_predictions_norm, model_pred_uncertainties, targets_nor
 # get the mape of the nn projected predictions
 def evaluate_projection(normalized_model_predictions, normalized_targets, normalized_inputs, data_preprocessed, w_matrix):
 
-    normalized_inputs_ = normalized_inputs.clone()
-    normalized_targets_ = normalized_targets.clone()
+    # perform a copy to avoid modifying the original arrays
+    normalized_inputs_ = (np.array(normalized_inputs)).copy()
+    normalized_targets_ = (np.array(normalized_targets)).copy()
 
     # get the normalized projection predicitions of the model
     normalized_proj_predictions  =  get_average_predictions_projected(torch.tensor(normalized_model_predictions), torch.tensor(normalized_inputs_), data_preprocessed, constraint_p_i_ne, w_matrix) 
-    normalized_proj_predictions = torch.tensor(np.stack(normalized_proj_predictions))
+    normalized_proj_predictions = np.array(torch.tensor(np.stack(normalized_proj_predictions)))
 
     # compute the mape and sem with respect to target
-    mape = mean_absolute_percentage_error(normalized_targets_, normalized_proj_predictions)
-    rmse = np.sqrt(mean_squared_error(normalized_targets_, normalized_proj_predictions))
+    mape_j = np.mean(np.abs((normalized_targets_ - normalized_proj_predictions) / normalized_targets_)) * 100
+    rmse_j = np.sqrt(np.mean((normalized_targets_ - normalized_proj_predictions) ** 2))
 
-    return mape, rmse
+    return mape_j, rmse_j
 
-# 
-def select_random_rows(input_file, n, temp_file = 'data/ltp_system/temp.txt'):
-    try:
-        # Read all lines from the input file
-        with open(input_file, 'r') as f:
-            lines = f.readlines()
-        
-        # Ensure N is not larger than the number of lines
-        n = min(n, len(lines))
-        
-        # Randomly select N lines
-        selected_lines = random.sample(lines, n)
-        
-        # Create the directory if it doesn't exist
-        os.makedirs(os.path.dirname(temp_file), exist_ok=True)
-        
-        # Write the selected lines to the temp file
-        with open(temp_file, 'w') as f:
-            f.writelines(selected_lines)
-        
-        return temp_file
-    except FileNotFoundError:
-        return False, f"Error: The input file '{input_file}' was not found."
-    except PermissionError:
-        return False, f"Error: Permission denied when trying to create or write to '{temp_file}'."
-    except Exception as e:
-        return False, f"An unexpected error occurred: {str(e)}"
-
-#
-def split_dataset(input_file, n_testing_points, output_dir=None, testing_file=None, training_file=None):
-    try:
-        # Read all lines from the input file
-        with open(input_file, 'r') as f:
-            lines = f.readlines()
-
-        # Ensure n_testing_points is not larger than the total number of lines
-        total_lines = len(lines)
-        if n_testing_points >= total_lines:
-            raise ValueError(f"n_testing_points ({n_testing_points}) must be less than the total number of lines in the dataset ({total_lines})")
-
-        # Randomly select n_testing_points for the testing set
-        testing_indices = set(random.sample(range(total_lines), n_testing_points))
-
-        # Determine output file paths
-        if output_dir is None:
-            output_dir = os.path.dirname(input_file)
-        os.makedirs(output_dir, exist_ok=True)
-
-        if testing_file is None:
-            testing_file = os.path.join(output_dir, 'testing_data.txt')
-        if training_file is None:
-            training_file = os.path.join(output_dir, 'training_data.txt')
-
-        # Write the data to testing and training files
-        with open(testing_file, 'w') as test_f, open(training_file, 'w') as train_f:
-            for i, line in enumerate(lines):
-                if i in testing_indices:
-                    test_f.write(line)
-                else:
-                    train_f.write(line)
-
-        print(f"Dataset split successfully:")
-        print(f"- Testing data ({n_testing_points} points) saved to: {testing_file}")
-        print(f"- Training data ({total_lines - n_testing_points} points) saved to: {training_file}")
-
-        # Return the paths of the created files
-        return testing_file, training_file
-
-    except FileNotFoundError:
-        print(f"Error: The input file '{input_file}' was not found.")
-    except PermissionError:
-        print(f"Error: Permission denied when trying to create or write to the output files.")
-    except ValueError as ve:
-        print(f"Error: {str(ve)}")
-    except Exception as e:
-        print(f"An unexpected error occurred: {str(e)}")
-
-    # Return None values if an error occurred
-    return None, None
 
 # get the overall RMSE statistics for each sample size across all random samples
 def get_rmse_overall_statistics(n_samples_per_size, model_rmses, model_sigmas_rmse):
@@ -263,12 +182,12 @@ def get_rmse_overall_statistics(n_samples_per_size, model_rmses, model_sigmas_rm
     sigma_rmse_samples = np.std(model_rmses, ddof=1) / np.sqrt(n_samples_per_size)
 
     # propagated uncertainty from individual predictions
-    sigma_rmse_predictions = np.sqrt(np.mean(model_sigmas_rmse ** 2))
+    #sigma_rmse_predictions = np.sqrt(np.mean(model_sigmas_rmse ** 2))
 
     # rmse uncertainty for each dataset size
-    sigma_rmse_overall = np.sqrt(sigma_rmse_samples ** 2 + sigma_rmse_predictions ** 2)
+    #sigma_rmse_overall = np.sqrt(sigma_rmse_samples ** 2 + sigma_rmse_predictions ** 2)
 
-    return rmse_overall, sigma_rmse_overall
+    return rmse_overall, sigma_rmse_samples
 
 # get the overall RMSE statistics for each sample size across all random samples
 def get_mape_overall_statistics(n_samples_per_size, model_mapes, model_sigmas_mape):
@@ -301,12 +220,12 @@ def get_mape_overall_statistics(n_samples_per_size, model_mapes, model_sigmas_ma
     sigma_mape_samples = np.std(model_mapes, ddof=1) / np.sqrt(n_samples_per_size)
 
     # propagated uncertainty from individual predictions
-    sigma_mape_predictions = np.sqrt(np.mean(model_sigmas_mape ** 2))
+    #sigma_mape_predictions = np.sqrt(np.mean(model_sigmas_mape ** 2))
 
     # rmse uncertainty for each dataset size
-    sigma_mape_overall = np.sqrt(sigma_mape_samples ** 2 + sigma_mape_predictions ** 2)
+    #sigma_mape_overall = np.sqrt(sigma_mape_samples ** 2 + sigma_mape_predictions ** 2)
 
-    return mape_overall, sigma_mape_overall
+    return mape_overall, sigma_mape_samples
 
 # main function to run the experiment
 def run_experiment_6e(config_original, large_dataset_path, dataset_sizes, options):
@@ -330,32 +249,32 @@ def run_experiment_6e(config_original, large_dataset_path, dataset_sizes, option
     results_file_path = 'output/ltp_system/checkpoints/different_datasets/results.csv'
 
     # number of different random samples for each dataset size
-    n_samples_per_size = 30
+    n_samples_per_size = options['n_samples']
 
     if options['RETRAIN_MODEL']:
         results = []
 
         # loop over the dataset sizes to generate
-        for idx, dataset_size in enumerate(tqdm(dataset_sizes, desc="Evaluating Different Datasets")):
+        for idx_dataset, dataset_size in enumerate(tqdm(dataset_sizes, desc="Evaluating Different Datasets")):
             
             nn_mapes, nn_sigmas_mape, nn_rmses, nn_sigmas_rmse = [], [], [], []
             proj_mapes, proj_rmses = [], []
             
             # for each dataset set create different samples
-            for _ in range(n_samples_per_size):
+            for idx_sample in range(n_samples_per_size):
             
                 # 1. read from the train_path file and randomly select 'dataset_size' rows
                 temp_file = select_random_rows(training_file, dataset_size)
 
                 # 2. read the dataset and preprocess data
                 _, temp_dataset = load_dataset(config_, temp_file)
-                train_data_norm, val_data_norm = setup_dataset_with_preproprocessing_info(temp_dataset.x, temp_dataset.y, data_preprocessing_info)  
+                train_data_norm, _, val_data_norm  = setup_dataset_with_preproprocessing_info(temp_dataset.x, temp_dataset.y, data_preprocessing_info)  
 
                 # 4. create the val loader
                 val_loader = torch.utils.data.DataLoader(val_data_norm, batch_size=config_['nn_model']['batch_size'], shuffle=True)
 
                 # 5. train the neural network model (nn)
-                nn_models, _, _, _ = get_trained_nn(config_, data_preprocessing_info, idx, train_data_norm, val_loader)
+                nn_models, _, _, _ = get_trained_nn(config_, data_preprocessing_info, idx_dataset,idx_sample ,train_data_norm, val_loader)
 
                 # 6. use the trained nn to make predictions on the test inputs - get the normalized model predictions 
                 test_inputs_norm_  = test_inputs_norm.clone() 
@@ -426,57 +345,66 @@ def run_experiment_6e(config_original, large_dataset_path, dataset_sizes, option
 def Figure_6e(config_plotting, df):
 
     ############################################## MAPE PLOTS
-    plt.figure(figsize=(10, 5))
-    plt.xlabel('Dataset Size', fontsize=24)
-    plt.ylabel('MAPE (\%)', fontsize=24)
-    plt.errorbar(
-        df['dataset_sizes'], df['nn_mapes'],                  # x, y
-        yerr=df['nn_mape_uncertainties'],                     # y uncertainty
-        fmt='-o', color=models_parameters['NN']['color'], 
-        label='MAPE NN'
-    )
-    plt.errorbar(
-        df['dataset_sizes'], df['proj_mapes'],                 # x, y
-        yerr=df['proj_mape_uncertainties'],                    # y uncertainty
-        fmt='-o', color=models_parameters['proj_nn']['color'], 
-        linestyle='--', label='NN projection'
-    )
-    #plt.yscale('log') 
-    plt.ylim(1e-2, 1e-1)  # Set y-axis range
-    plt.tick_params(axis='y', labelsize=24)
-    plt.tick_params(axis='x', labelsize=24) 
-    plt.legend(loc='upper right', fontsize=24)
-    # Save figures
-    output_dir = config_plotting['output_dir'] 
+    # Initialize the figure
+    fig, ax1 = plt.subplots(figsize=(10, 5))
+    # Plot MAPE for NN and NN projection as a function of the model parameters
+    ax1.set_xlabel('Dataset Size', fontsize=24)
+    ax1.set_ylabel('MAPE (%)', fontsize=24)
+    ax1.plot(df['dataset_sizes'], df['nn_mapes'], '-o', color=models_parameters['NN']['color'], label='NN')
+    ax1.plot(df['dataset_sizes'], df['proj_mapes'], '-o', color=models_parameters['proj_nn']['color'], linestyle='--', label='NN projection')
+    ax1.tick_params(axis='y', labelsize=24)
+    ax1.tick_params(axis='x', labelsize=24)
+    ax1.legend(loc='right', fontsize=24)
+    # Create a second y-axis for the improvement rate
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('MAPE Variation Rate (\%)', fontsize=24, color='gray')
+    improvement_rate = (df['proj_mapes'] - df['nn_mapes']) / df['nn_mapes'] * 100
+    ax2.plot(df['dataset_sizes'], improvement_rate, '-o', color='gray', label='Improvement Rate (%)')  # Set line color to gray
+    ax2.set_ylim(-16, 1)
+    ax2.axhline(0, color='lightgray', linestyle='--', linewidth=2)  
+    ax2.tick_params(axis='y', labelsize=24, colors='gray')  # Set tick color to gray
+    ax2.spines['right'].set_color('gray')  # Set color of the second y-axis spine to gray
+    # Save figure
+    fig.tight_layout()
+    output_dir = config_plotting['output_dir'] + "Figures_6d"
     os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, f"Figure_6e_mape")
-    savefig(save_path, pad_inches = 0.2)
+    save_path = os.path.join(output_dir, "Figure_6e_mape")
+    savefig(save_path, pad_inches=0.2)
+
     
     ############################################## RMSE PLOTS
-    plt.figure(figsize=(10, 5))
-    plt.xlabel('Dataset Size', fontsize=24)
-    plt.ylabel('RMSE', fontsize=24)
-    plt.errorbar(
-        df['dataset_sizes'], df['nn_rmses'],              # x, y
-        yerr=df['nn_rmse_uncertainties'],                 # y uncertainty 
-        fmt='-o', color=models_parameters['NN']['color'], 
-        label='RMSE NN'
-    )
-    plt.errorbar(
-        df['dataset_sizes'], df['proj_rmses'], 
-        yerr=df['proj_rmse_uncertainties'], 
-        fmt='-o', color=models_parameters['proj_nn']['color'], 
-        linestyle='--', label='NN projection'
-    )
-    #plt.yscale('log')
-    plt.ylim(1e-3, 0.05)  # Set y-axis range
-    plt.tick_params(axis='y', labelsize=24)
-    plt.tick_params(axis='x', labelsize=24) 
-    plt.legend(loc='upper right', fontsize=24)
-    # Save figures
-    output_dir = config_plotting['output_dir'] 
+    # Initialize the figure
+    fig, ax1 = plt.subplots(figsize=(10, 5))
+    # Plot RMSE for NN and NN projection as a function of the model parameters
+    ax1.set_xlabel('Dataset Size', fontsize=24)
+    ax1.set_ylabel('RMSE', fontsize=24)
+    ax1.set_ylim(3.5e-2, 13e-2)
+    ax1.set_yticks([4e-2, 6e-2, 8e-2, 10e-2, 12e-2])
+    ax1.set_yticklabels(['4', '6', '8', '10', '12'])
+    ax1.plot(df['dataset_sizes'], df['nn_rmses'], '-o', color=models_parameters['NN']['color'], label='NN')
+    ax1.plot(df['dataset_sizes'], df['proj_rmses'], '-o', color=models_parameters['proj_nn']['color'], linestyle='--', label='NN projection')
+    ax1.tick_params(axis='y', labelsize=24)
+    ax1.tick_params(axis='x', labelsize=24)
+    ax1.legend(loc='right', fontsize=24)
+    # Add scientific notation label at the top of the y-axis
+    ax1.text(plt.gca().get_position().bounds[0] - 0.13, 1.05, r'$\times 10^{-2}$', 
+            transform=plt.gca().transAxes, fontsize=24, ha='left', va='center')
+    # Create a second y-axis for the improvement rate
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('RMSE Variation Rate (\%)', fontsize=24, color='gray')
+    improvement_rate_rmse = (df['proj_rmses'] - df['nn_rmses']) / df['nn_rmses'] * 100
+    ax2.plot(df['dataset_sizes'], improvement_rate_rmse, '-o', color='gray', label='Improvement Rate (%)')  # Set line color to gray
+    ax2.set_ylim(-16, 1)
+    ax2.axhline(0, color='lightgray', linestyle='--', linewidth=2)  
+    ax2.tick_params(axis='y', labelsize=24, colors='gray')  # Set tick color to gray
+    ax2.spines['right'].set_color('gray')  # Set color of the second y-axis spine to gray
+    # Save figure
+    fig.tight_layout()
+    output_dir = config_plotting['output_dir'] + "Figures_6d"
     os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, f"Figure_6e_rmse")
-    savefig(save_path, pad_inches = 0.2)
+    save_path = os.path.join(output_dir, "Figure_6e_rmse")
+    savefig(save_path, pad_inches=0.2)
+
+
 
 

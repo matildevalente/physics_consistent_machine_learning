@@ -26,11 +26,11 @@ models_parameters = {
         'color': '#FFAE0D'  
     },
     'proj_nn': {
-        'name': 'NN Projection',
+        'name': 'NN projection',
         'color': '#d62728'  
     },
     'proj_pinn': {
-        'name': 'PINN Projection',
+        'name': 'PINN projection',
         'color': '#9A5092'  
     }
 }
@@ -58,14 +58,9 @@ def load_data(test_filename, preprocessed_data):
 def generate_config_(config, hidden_sizes, activation_fns, options):
     return {
         'dataset_generation' : config['dataset_generation'],
-        'data_prep' : {
-            'fraction_train': 0.8,    
-            'fraction_val': 0.1,    
-            'fraction_test': 0.1,    
-            'skew_threshold_down': 0 , 
-            'skew_threshold_up': 3,
-        },
+        'data_prep' : config['data_prep'],
         'nn_model': {
+            'APPLY_EARLY_STOPPING': options['APPLY_EARLY_STOPPING'],
             'RETRAIN_MODEL'      : options['RETRAIN_MODEL'],
             'hidden_sizes'       : hidden_sizes,
             'activation_fns'     : activation_fns,
@@ -96,7 +91,7 @@ def get_trained_nn(config, preprocessed_data, idx_arc):
     val_loader = torch.utils.data.DataLoader(preprocessed_data.val_data, batch_size=config['nn_model']['batch_size'], shuffle=True)
 
     if config['nn_model']['RETRAIN_MODEL']:
-        nn_models, nn_losses_dict, training_time = get_trained_bootstraped_models(config['nn_model'], config['plotting'], preprocessed_data, nn.MSELoss(), checkpoint_dir, device, val_loader, train_data)
+        nn_models, nn_losses_dict, training_time = get_trained_bootstraped_models(config['nn_model'], config['plotting'], preprocessed_data, nn.MSELoss(), checkpoint_dir, device, val_loader, train_data, seed = 'default')
         return nn_models, nn_losses_dict, device, training_time
     else:
         try:
@@ -106,61 +101,49 @@ def get_trained_nn(config, preprocessed_data, idx_arc):
             raise ValueError("Checkpoint not found. Set RETRAIN_MODEL to True or provide a valid checkpoint.")
 
 
-
-# compute the mape uncertainty of the aggregated nn models
-def get_mape_uncertainty(normalized_targets, normalized_model_pred_uncertainty):
-    # normalized_model_pred_uncertainty is the std / sqrt(n_models) of each model prediction
-    # normalized_targets is the corresponding model target
-    # here we compute the uncertaity of the mape by propagating the uncertainty of each model prediction
-
-    # Compute MAPE uncertainty based on individual prediction uncertainties
-    n = len(normalized_targets)
-    mape_uncertainty = 0
-    
-    # Loop over each sample
-    for i in range(n):
-        # Extract the target row and uncertainty row for the current sample
-        target_row = normalized_targets[i]
-        uncertainty_row = normalized_model_pred_uncertainty[i]
-
-        # Ensure that the target row has no zeros to avoid division errors
-        non_zero_mask = target_row != 0  # Boolean mask where targets are non-zero
-
-        # Use the mask to compute the uncertainty for valid (non-zero target) values
-        mape_uncertainty += torch.sum((uncertainty_row[non_zero_mask] / target_row[non_zero_mask]) ** 2).item()
-
-    # Final uncertainty
-    mape_uncertainty = np.sqrt(mape_uncertainty) / n
-
-    return mape_uncertainty
-
 # the the mape and mape uncertainty of the nn aggregated model
 def evaluate_model(nn_models, normalized_inputs, normalized_targets):
+    # perform a copy to avoid modifying the original arrays
+    normalized_inputs_ = (np.array(normalized_inputs)).copy()
+    targets_norm_ = (np.array(normalized_targets)).copy()
     
     # get the normalized model predictions 
-    normalized_model_predictions =  get_average_predictions(nn_models, torch.tensor(normalized_inputs))
-    normalized_model_pred_uncertainty =  get_predictive_uncertainty(nn_models, torch.tensor(normalized_inputs)) # for each point prediction gives an uncertainty value
+    normalized_model_predictions =  get_average_predictions(nn_models, torch.tensor(normalized_inputs_))
+    model_pred_uncertainty =  get_predictive_uncertainty(nn_models, torch.tensor(normalized_inputs_)) 
+
+    m = len(model_pred_uncertainty)
+
+    #
+    normalized_model_predictions_ = (np.array(normalized_model_predictions)).copy()
+    model_pred_uncertainty_ = (np.array(model_pred_uncertainty)).copy()
 
     # compute the mape and sem with respect to target
-    mape = mean_absolute_percentage_error(normalized_targets, normalized_model_predictions)
-    mape_uncertainty = get_mape_uncertainty(normalized_targets, normalized_model_pred_uncertainty)
+    mape = np.mean(np.abs((targets_norm_ - normalized_model_predictions_) / targets_norm_)) * 100
+    mape_uncertainty = np.sqrt(np.mean(np.square(model_pred_uncertainty_ / targets_norm_))) * 100
 
-    rmse = np.sqrt(mean_squared_error(normalized_targets, normalized_model_predictions))
+    rmse = np.sqrt(mean_squared_error(normalized_targets, normalized_model_predictions_))
+    rmse_uncertainty = (1 / np.sqrt(m)) * np.sqrt(np.sum(np.square(model_pred_uncertainty_)))
 
-    return mape, mape_uncertainty, normalized_model_predictions, rmse
+    return mape, mape_uncertainty, normalized_model_predictions_, rmse, rmse_uncertainty
+
 
 # get the mape of the nn projected predictions
 def evaluate_projection(normalized_model_predictions, normalized_targets, normalized_inputs, data_preprocessed, w_matrix):
-
+    # perform a copy to avoid modifying the original arrays
+    normalized_inputs_ = (np.array(normalized_inputs)).copy()
+    normalized_targets_ = (np.array(normalized_targets)).copy()
+    normalized_model_predictions_ = (np.array(normalized_model_predictions)).copy()
+    
     # get the normalized projection predicitions of the model
-    normalized_proj_predictions  =  get_average_predictions_projected(torch.tensor(normalized_model_predictions), torch.tensor(normalized_inputs), data_preprocessed, constraint_p_i_ne, w_matrix) 
-    normalized_proj_predictions = torch.tensor(np.stack(normalized_proj_predictions))
+    normalized_proj_predictions  =  get_average_predictions_projected(torch.tensor(normalized_model_predictions_), torch.tensor(normalized_inputs_), data_preprocessed, constraint_p_i_ne, w_matrix) 
+    normalized_proj_predictions = np.array(torch.tensor(np.stack(normalized_proj_predictions)))
 
     # compute the mape and sem with respect to target
-    mape = mean_absolute_percentage_error(normalized_targets, normalized_proj_predictions)
-    rmse = np.sqrt(mean_squared_error(normalized_targets, normalized_proj_predictions))
+    mape = np.mean(np.abs((normalized_targets_ - normalized_proj_predictions) / normalized_targets_)) * 100
+    rmse = np.sqrt(np.mean((normalized_targets_ - normalized_proj_predictions) ** 2))
 
     return mape, rmse
+
 
 # compute the number of weights and biases in the nn
 def compute_parameters(layer_config):
@@ -190,20 +173,13 @@ def plot_histogram_with_params(architectures, options, config_plotting):
     plt.legend()
 
     # Save figures
-    output_dir = config_plotting['output_dir'] 
+    output_dir = config_plotting['output_dir']  + "Figures_6a"
     os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, f"Figure_6a_extra")
     savefig(save_path, pad_inches = 0.2)
 
 #
 def get_random_architectures(options):
-    
-    def generate_random_architecture(min_layers, max_layers, min_neurons, max_neurons):
-        """Generate a random architecture with a number of hidden layers and units per layer."""
-        num_layers = random.randint(min_layers, max_layers)
-        arch = [random.randint(min_neurons, max_neurons) for _ in range(num_layers)]
-
-        return arch
 
     print("\nGenerating random NN architectures for Figure 6a.")
     min_neurons_per_layer = options['min_neurons_per_layer']
@@ -212,32 +188,19 @@ def get_random_architectures(options):
     max_hidden_layers = options['max_hidden_layers']
     min_hidden_layers = options['min_hidden_layers']
 
-    min_parameters = compute_parameters([min_neurons_per_layer] * min_hidden_layers)
-    max_parameters = compute_parameters([max_neurons_per_layer] * max_hidden_layers)
 
-    # Define bins for uniform parameter distribution
-    bins = np.linspace(min_parameters, max_parameters, n_architectures + 1)
-    #bins = np.logspace(min_parameters, max_parameters, n_architectures + 1)
-    bin_filled = [False] * n_architectures  # Keep track of filled bins
-    
+    # Generate uniformly distributed number of hidden layers (as integers)
+    architectures = np.linspace(min_neurons_per_layer, max_neurons_per_layer, n_architectures, dtype=int)
+    architectures = np.concatenate([architectures, [5, 10, 18]])
+    architectures = np.sort(architectures)
+
+    # Convert each element of hidden_layers_list to a sublist of repeated neurons
     architectures_list = []
-    
-    while len(architectures_list) < n_architectures:
-        # Generate a random architecture
-        architecture = generate_random_architecture(min_hidden_layers, max_hidden_layers, min_neurons_per_layer, max_neurons_per_layer)
-        
-        # Calculate the number of parameters
-        total_params = compute_parameters(architecture)
-        
-        # Check which bin the total_params falls into
-        for i in range(len(bins) - 1):
-            if bins[i] <= total_params < bins[i + 1] and not bin_filled[i]:
-                architectures_list.append(architecture)
-                bin_filled[i] = True  # Mark the bin as filled
-                break  # Move to the next architecture generation
-    
-    return architectures_list
+    for architecture in architectures:
+        sublist = [architecture] * min_hidden_layers
+        architectures_list.append(sublist)
 
+    return architectures_list
 
 
 # main function to run the experiment
@@ -277,17 +240,16 @@ def run_experiment_6a(config_original, filename, options):
             # train model and count training time
             nn_models, _, _, training_time = get_trained_nn(config_, preprocessed_data, idx)
 
-            
             # perform model predictions with the trained nn
-            mape_nn, mape_uncertainty_nn,normalized_model_predictions, rmse_nn  = evaluate_model(nn_models, normalized_inputs, normalized_targets)
+            mape_nn, mape_uncertainty_nn, normalized_model_predictions, rmse_nn, rmse_uncertainty_nn  = evaluate_model(nn_models, normalized_inputs, normalized_targets)
 
             # perform model predictions with the trained nn
             mape_proj, rmse_proj = evaluate_projection(normalized_model_predictions, normalized_targets, normalized_inputs, preprocessed_data, options['w_matrix'])
 
             params = compute_parameters(hidden_sizes)
-            results.append((params, mape_nn, mape_uncertainty_nn, mape_proj, rmse_nn, rmse_proj, training_time))
+            results.append((params, mape_nn, mape_uncertainty_nn, mape_proj, rmse_nn, rmse_uncertainty_nn, rmse_proj, training_time))
 
-        params, mapes_nn, mape_uncertainties_nn, mapes_proj, rmses_nn, rmses_proj, times = zip(*results)
+        params, mapes_nn, mape_uncertainties_nn, mapes_proj, rmses_nn, rmse_uncertainties_nn, rmses_proj, times = zip(*results)
         data = {
             'architectures': random_architectures_list, 
             'num_params': params,
@@ -295,6 +257,7 @@ def run_experiment_6a(config_original, filename, options):
             'uncertanties_mape_nn': mape_uncertainties_nn,
             'mapes_proj': mapes_proj,
             'rmses_nn': rmses_nn, 
+            'uncertanties_rmse_nn': rmse_uncertainties_nn,
             'rmses_proj': rmses_proj,
             'model_training_time': times
         }
@@ -311,45 +274,63 @@ def run_experiment_6a(config_original, filename, options):
 # Plot the results
 def Figure_6a(config_plotting, df):
 
-    plt.figure(figsize=(10, 5))
-    plt.xlabel('Number of Parameters', fontsize=24)
-    plt.ylabel('MAPE (\%)', fontsize=24)
-    #plt.errorbar(df['num_params'], df['mapes_nn'], yerr=df['uncertanties_mape_nn'], fmt='-o', color=models_parameters['NN']['color'], label='MAPE NN')
-    plt.plot(df['num_params'], df['mapes_nn'], color=models_parameters['NN']['color'], label='MAPE NN')
-    plt.plot(df['num_params'], df['mapes_proj'], color=models_parameters['proj_nn']['color'], linestyle='--', label='MAPE Projection')
-    plt.tick_params(axis='y', labelsize=24)
-    plt.tick_params(axis='x', labelsize=24)  # Set x-axis tick font size
-    plt.legend(loc='upper right', fontsize=24)
-    """plt.twinx()
-    color = 'tab:green'
-    plt.ylabel('Training Time (s)', color=color, fontsize=24)
-    plt.scatter(df['num_params'], df['model_training_time'], color=color, label='Training Time')
-    plt.tick_params(axis='y', labelcolor=color, labelsize=24)"""
-    # Save figures
-    output_dir = config_plotting['output_dir'] 
+    # Plot MAPE for NN and NN projection
+    fig, ax1 = plt.subplots(figsize=(10, 5))
+    ax1.set_xlabel('Number of Parameters', fontsize=24)
+    ax1.set_ylabel('MAPE (\%)', fontsize=24)
+    ax1.plot(df['num_params'], df['mapes_nn'], '-o', color=models_parameters['NN']['color'], label='NN')
+    ax1.plot(df['num_params'], df['mapes_proj'], '-o', color=models_parameters['proj_nn']['color'], linestyle='--', label='NN projection')
+    ax1.tick_params(axis='y', labelsize=24)
+    ax1.tick_params(axis='x', labelsize=24)
+    ax1.legend(loc='upper right', fontsize=24)
+    # Create a second y-axis for the improvement rate
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('MAPE Variation Rate (\%)', fontsize=24, color='gray')
+    improvement_rate = (df['mapes_proj'] - df['mapes_nn']) / df['mapes_nn'] * 100
+    ax2.plot(df['num_params'], improvement_rate, '-o', color='gray', label='Improvement Rate (%)') 
+    ax2.axhline(0, color='lightgray', linestyle='--', linewidth=2)  # Horizontal line at y=0
+    ax2.tick_params(axis='y', labelsize=24, colors='gray')  # Set tick color to gray
+    ax2.spines['right'].set_color('gray')  # Set color of the second y-axis spine to gray
+    #fig.legend(loc='upper right', fontsize=18, ncol=3, bbox_to_anchor=(0.5, 1.1))
+    # Save figure
+    fig.tight_layout()
+    output_dir = config_plotting['output_dir'] + "Figures_6a"
     os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, f"Figure_6a_mape")
-    savefig(save_path, pad_inches = 0.2)
+    save_path = os.path.join(output_dir, "Figure_6a_mape")
+    fig.savefig(save_path, pad_inches=0.2)
 
 
-
-    plt.figure(figsize=(10, 5))
-    plt.xlabel('Number of Parameters', fontsize=24)
-    plt.ylabel('RMSE', fontsize=24)
-    plt.plot(df['num_params'], df['rmses_nn'],  color=models_parameters['NN']['color'], label='RMSE NN')
-    plt.plot(df['num_params'], df['rmses_proj'], color=models_parameters['proj_nn']['color'], linestyle='--', label='RMSE Projection')
-    plt.tick_params(axis='y', labelsize=24)
-    plt.tick_params(axis='x', labelsize=24)  # Set x-axis tick font size
-    plt.legend(loc='upper right', fontsize=24)
-    """plt.twinx()
-    color = 'tab:green'
-    plt.ylabel('Training Time (s)', color=color, fontsize=24)
-    plt.scatter(df['num_params'], df['model_training_time'], color=color, label='Training Time')
-    plt.tick_params(axis='y', labelcolor=color, labelsize=24)  """ 
-    # Save figures
-    output_dir = config_plotting['output_dir'] 
+    # Initialize the figure
+    fig, ax1 = plt.subplots(figsize=(10, 5))
+    # Plot RMSE for NN and NN projection
+    ax1.set_xlabel('Number of Parameters', fontsize=24)
+    ax1.set_ylabel('RMSE', fontsize=24)
+    ax1.set_yscale('log')
+    ax1.set_ylim(5e-2, 6e-1)
+    ax1.set_yticks([5e-2, 1e-1, 2e-1, 4e-1])
+    ax1.set_yticklabels(['5', '10', '20', '40'])
+    ax1.plot(df['num_params'], df['rmses_nn'], '-o', color=models_parameters['NN']['color'], label='NN')
+    ax1.plot(df['num_params'], df['rmses_proj'], '-o', color=models_parameters['proj_nn']['color'], linestyle='--', label='NN projection')
+    ax1.tick_params(axis='y', labelsize=24)
+    ax1.tick_params(axis='x', labelsize=24)
+    ax1.legend(loc='right', fontsize=24)
+    # Add scientific notation label at the top of the y-axis
+    ax1.text(plt.gca().get_position().bounds[0] - 0.13, 1.05, r'$\times 10^{-2}$', 
+            transform=plt.gca().transAxes, fontsize=24, ha='left', va='center')
+    # Create a second y-axis for the improvement rate
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('RMSE Variation Rate (\%)', fontsize=24, color='gray')
+    improvement_rate_rmse = (df['rmses_proj'] - df['rmses_nn']) / df['rmses_nn'] * 100
+    ax2.plot(df['num_params'], improvement_rate_rmse, '-o', color='gray', label='Improvement Rate (%)')  # Set line color to gray
+    ax2.tick_params(axis='y', labelsize=24, colors='gray')  # Set tick color to gray
+    ax2.spines['right'].set_color('gray')  # Set color of the second y-axis spine to gray
+    fig.legend(loc='right', fontsize=18, ncol=3, bbox_to_anchor=(0.5, 1.1))
+    # Save figure
+    fig.tight_layout()
+    output_dir = config_plotting['output_dir'] + "Figures_6a"
     os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, f"Figure_6a_RMSE")
-    savefig(save_path, pad_inches = 0.2)
+    save_path = os.path.join(output_dir, "Figure_6a_rmse")
+    fig.savefig(save_path, pad_inches=0.2)
+    plt.show()
 
 

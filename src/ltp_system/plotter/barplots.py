@@ -1,10 +1,12 @@
 import os
 import torch
 import numpy as np
-import matplotlib.pyplot as plt
-from typing import List, Dict
 import matplotlib as mpl
+from typing import List, Dict
+import matplotlib.pyplot as plt
+from src.ltp_system.utils import savefig
 from matplotlib.ticker import FuncFormatter
+
 
 pgf_with_latex = {                      # setup matplotlib to use latex for output
     "pgf.texsystem": "pdflatex",        # change this if using xetex or lautex
@@ -16,13 +18,9 @@ pgf_with_latex = {                      # setup matplotlib to use latex for outp
 
 plt.rcParams.update(pgf_with_latex)
 
-from src.ltp_system.utils import savefig
+output_labels = [r'O$_2$(X)', r'O$_2$(a$^1\Delta_g$)', r'O$_2$(b$^1\Sigma_g^+$)', r'O$_2$(Hz)', r'O$_2^+$', r'O($^3P$)', r'O($^1$D)', r'O$^+$', r'O$^-$', r'O$_3$', r'O$_3^*$', r'$T_g$', r'T$_{nw}$', r'Red\_E', r'$v_d$', r'E$_{\mathrm{mean}}$', r'$n_e$']
 
-output_labels_latex = [r'O$_2$(X)', r'O$_2$(a$^1\Delta_g$)', r'O$_2$(b$^1\Sigma^+_g$)', r'O$_2$(Hz)', 
-r'O$_2$(+,X)', r'O($^3$P)', r'O($^1$D)', r'O(+,gnd)', r'O(-,gnd)', r'O$_3$(X)', r'O$_3$(exc)', r'T$_g$', 
-r'T$_{nw}$', r'Red$_{E}$', r'v$_{d}$', r'E$_{mean}$', r'n$_{e}$'
-]
-
+# Code for plotting barplot of the MAPE for each of the output features
 def Figure_4a(config_plotting, nn_mape_dict, pinn_mape_dict):
 
     bar_plot_palette = config_plotting['barplot_palette']
@@ -46,27 +44,25 @@ def Figure_4a(config_plotting, nn_mape_dict, pinn_mape_dict):
     br3 = [x + barWidth for x in br2]
     br4 = [x + barWidth for x in br3]
     plt.bar(br1, mape_nn,  color=bar_plot_palette[0], width=barWidth, edgecolor='black', label='NN', linewidth=edge_linewidth)
-    plt.bar(br2, mape_nn_proj,  color=bar_plot_palette[1], width=barWidth, edgecolor='black', label='NN Projection', linewidth=edge_linewidth)
+    plt.bar(br2, mape_nn_proj,  color=bar_plot_palette[1], width=barWidth, edgecolor='black', label='NN projection', linewidth=edge_linewidth)
     plt.bar(br3, mape_pinn,  color=bar_plot_palette[2], width=barWidth, edgecolor='black', label='PINN', linewidth=edge_linewidth)
-    plt.bar(br4, mape_pinn_proj,  color=bar_plot_palette[3], width=barWidth, edgecolor='black', label='PINN Projection', linewidth=edge_linewidth)
+    plt.bar(br4, mape_pinn_proj,  color=bar_plot_palette[3], width=barWidth, edgecolor='black', label='PINN projection', linewidth=edge_linewidth)
 
     # Adding Xticks
     plt.ylabel('MAPE (\%)', fontweight='bold', fontsize=24)
-    plt.xticks([r + barWidth for r in range(num)], output_labels_latex, rotation=45, fontsize=24, fontweight='bold')
+    plt.xticks([r + barWidth for r in range(num)], output_labels, rotation=45, fontsize=24, fontweight='bold')
     plt.yticks(fontsize=24)
     
     # Add legend
     plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.30), ncol=4, fontsize=24, frameon=False)
-
+    
     # Save figures
     output_dir = config_plotting['output_dir'] 
     os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, f"Figure_4a")
     savefig(save_path, pad_inches = 0.2)
     
-
-
-# Bar plot of relative errors of laws with restrictions pairs
+# Code for plotting relative errors of laws with restrictions pairs
 def Figure_4d(results, config_model, config_plotting):
     
     # Determine the model type being analyzed
@@ -99,17 +95,17 @@ def Figure_4d(results, config_model, config_plotting):
     x_tick_positions = [(x + barWidth * 3.5) for x in br1]  # Center between the 4th and 5th bar
 
     plt.bar(br1, [results['model']['mape'][i] for i in relevant_features_idx], yerr=[results['model']['sem'][i] for i in relevant_features_idx], color=bar_plot_palette[0], width=barWidth, label=f'{model_type}', edgecolor='black', linewidth=edge_linewidth, capsize=capsize)
-    plt.bar(br2, [results['P_I_ne']['mape'][i] for i in relevant_features_idx], yerr=[results['P_I_ne']['sem'][i] for i in relevant_features_idx], color=bar_plot_palette[1], width=barWidth, label=f'{model_type} Projection: all contraints', edgecolor='black', linewidth=edge_linewidth, capsize=capsize)
-    plt.bar(br3, [results['P']['mape'][i] for i in relevant_features_idx], yerr=[results['P']['sem'][i] for i in relevant_features_idx], color=bar_plot_palette[2], width=barWidth, label=f'{model_type} Projection: P contraint', edgecolor='black', linewidth=edge_linewidth, capsize=capsize)
-    plt.bar(br4, [results['I']['mape'][i] for i in relevant_features_idx], yerr=[results['I']['sem'][i] for i in relevant_features_idx], color=bar_plot_palette[3], width=barWidth, label=f'{model_type} Projection: I contraint', edgecolor='black', linewidth=edge_linewidth, capsize=capsize)
-    plt.bar(br5, [results['ne']['mape'][i] for i in relevant_features_idx], yerr=[results['ne']['sem'][i] for i in relevant_features_idx], color=bar_plot_palette[4], width=barWidth, label=f'{model_type} Projection: ne contraint', edgecolor='black', linewidth=edge_linewidth, capsize=capsize)
-    plt.bar(br6, [results['P_I']['mape'][i] for i in relevant_features_idx], yerr=[results['P_I']['sem'][i] for i in relevant_features_idx], color=bar_plot_palette[5], width=barWidth, label=f'{model_type} Projection: P and I contraints', edgecolor='black', linewidth=edge_linewidth, capsize=capsize)
-    plt.bar(br7, [results['P_ne']['mape'][i] for i in relevant_features_idx], yerr=[results['P_ne']['sem'][i] for i in relevant_features_idx], color=bar_plot_palette[6], width=barWidth, label=f'{model_type} Projection: P and ne contraints', edgecolor='black', linewidth=edge_linewidth, capsize=capsize)
-    plt.bar(br8, [results['I_ne']['mape'][i] for i in relevant_features_idx], yerr=[results['I_ne']['sem'][i] for i in relevant_features_idx], color=bar_plot_palette[7], width=barWidth, label=f'{model_type} Projection: I and ne contraints', edgecolor='black', linewidth=edge_linewidth, capsize=capsize)
+    plt.bar(br2, [results['P_I_ne']['mape'][i] for i in relevant_features_idx], yerr=[results['P_I_ne']['sem'][i] for i in relevant_features_idx], color=bar_plot_palette[1], width=barWidth, label=f'{model_type} projection: all contraints', edgecolor='black', linewidth=edge_linewidth, capsize=capsize)
+    plt.bar(br3, [results['P']['mape'][i] for i in relevant_features_idx], yerr=[results['P']['sem'][i] for i in relevant_features_idx], color=bar_plot_palette[2], width=barWidth, label=f'{model_type} projection: P contraint', edgecolor='black', linewidth=edge_linewidth, capsize=capsize)
+    plt.bar(br4, [results['I']['mape'][i] for i in relevant_features_idx], yerr=[results['I']['sem'][i] for i in relevant_features_idx], color=bar_plot_palette[3], width=barWidth, label=f'{model_type} projection: I contraint', edgecolor='black', linewidth=edge_linewidth, capsize=capsize)
+    plt.bar(br5, [results['ne']['mape'][i] for i in relevant_features_idx], yerr=[results['ne']['sem'][i] for i in relevant_features_idx], color=bar_plot_palette[4], width=barWidth, label=f'{model_type} projection: ne contraint', edgecolor='black', linewidth=edge_linewidth, capsize=capsize)
+    plt.bar(br6, [results['P_I']['mape'][i] for i in relevant_features_idx], yerr=[results['P_I']['sem'][i] for i in relevant_features_idx], color=bar_plot_palette[5], width=barWidth, label=f'{model_type} projection: P and I contraints', edgecolor='black', linewidth=edge_linewidth, capsize=capsize)
+    plt.bar(br7, [results['P_ne']['mape'][i] for i in relevant_features_idx], yerr=[results['P_ne']['sem'][i] for i in relevant_features_idx], color=bar_plot_palette[6], width=barWidth, label=f'{model_type} projection: P and ne contraints', edgecolor='black', linewidth=edge_linewidth, capsize=capsize)
+    plt.bar(br8, [results['I_ne']['mape'][i] for i in relevant_features_idx], yerr=[results['I_ne']['sem'][i] for i in relevant_features_idx], color=bar_plot_palette[7], width=barWidth, label=f'{model_type} projection: I and ne contraints', edgecolor='black', linewidth=edge_linewidth, capsize=capsize)
 
     # Adding Xticks 
     plt.ylabel('MAPE (\%)', fontsize=24) 
-    plt.xticks(x_tick_positions, [output_labels_latex[i] for i in relevant_features_idx], rotation=0, fontsize=30)
+    plt.xticks(x_tick_positions, [output_labels[i] for i in relevant_features_idx], rotation=0, fontsize=30)
     plt.yticks(fontsize=24)
     #plt.ylim(0, 15)
 
@@ -121,15 +117,14 @@ def Figure_4d(results, config_model, config_plotting):
     save_path = os.path.join(output_dir, f"Figure_4d")
     savefig(save_path, pad_inches=0.2)
 
-
-
+# Code for plotting the error in compliance with physical laws for each of the models
 def Figure_4b(config_plotting, laws_dict):
 
     # Initialize empty lists to hold all the MAPE and SEM values
     all_mapes, all_sems, all_abs_errors = [], [], []
 
     # Loop through the model types and extract corresponding values
-    for model_type in ["loki","nn_model", "pinn_model", "nn_model_proj", "pinn_model_proj"]:
+    for model_type in ["nn_model", "pinn_model", "nn_model_proj", "pinn_model_proj"]:
         mapes = [laws_dict[model_type][metric] for metric in ["p_mape", "i_mape", "ne_mape"]]
         sems = [laws_dict[model_type][sem_metric] for sem_metric in ["p_sem", "i_sem", "ne_sem"]]
         abs_errors = [laws_dict[model_type][sem_metric] for sem_metric in ["p_abs_err", "i_abs_err", "ne_abs_err"]]
@@ -140,7 +135,7 @@ def Figure_4b(config_plotting, laws_dict):
 
     # Set width of bar 
     width = 0.2
-    models = ["LoKI","NN", "PINN", "NN\nProjection", "PINN\nProjection"]
+    models = ["NN", "PINN", "NN\nprojection", "PINN\nprojection"]
 
     x = np.arange(len(models))
     palette = config_plotting['barplot_palette']
@@ -176,8 +171,7 @@ def Figure_4b(config_plotting, laws_dict):
     save_path = os.path.join(output_dir, f"Figure_4b")
     savefig(save_path, pad_inches = 0.2)
 
-
-#
+# Guarantee the values are in scientific notation
 def scientific_notation(x, pos):
     return f'{x:.0e}'
 

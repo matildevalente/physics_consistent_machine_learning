@@ -11,7 +11,7 @@ folder = fscanf(fid, '%s', 1);
 fclose(fid);
 
 % Define number of workers
-numWorkers = 8;
+numWorkers = 2;
 if numWorkers >= feature('numcores')
     error('Num of workers is higher than num of Cores');
 end
