@@ -1,13 +1,7 @@
 Initial Model,Projected Model,W Matrix,Metric,Mean Improv (%),Overall Improv (%),x1 Improv (%),v1 Improv (%),x2 Improv (%),v2 Improv (%)
 NN,NN,I,RMSE,97.0,61.0,98.0,86.0,88.0,75.0
-NN,NN,I,MAPE,65.0,34.0,76.0,74.0,68.0,55.0
-NN,NN,inv_cov,RMSE,78.0,30.0,89.0,62.0,77.0,47.0
-NN,NN,inv_cov,MAPE,14.0,2.0,21.0,52.0,28.0,4.0
+NN,NN,I,MAPE,65.0,34.0,76.0,74.0,69.0,55.0
 PINN,PINN,I,RMSE,97.0,61.0,98.0,86.0,88.0,74.0
 PINN,PINN,I,MAPE,66.0,36.0,74.0,70.0,72.0,51.0
-PINN,PINN,inv_cov,RMSE,77.0,35.0,87.0,65.0,77.0,50.0
-PINN,PINN,inv_cov,MAPE,17.0,2.0,25.0,38.0,29.0,2.0
 NN,PINN,I,RMSE,90.0,48.0,92.0,75.0,86.0,59.0
 NN,PINN,I,MAPE,48.0,8.0,52.0,47.0,74.0,16.0
-NN,PINN,inv_cov,RMSE,66.0,20.0,73.0,45.0,73.0,38.0
-NN,PINN,inv_cov,MAPE,13.0,1.0,18.0,30.0,32.0,2.0
