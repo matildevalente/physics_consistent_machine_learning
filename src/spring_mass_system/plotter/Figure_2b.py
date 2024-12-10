@@ -59,6 +59,7 @@ def plot_predicted_trajectory_vs_target(
 
     variables = ['x1', 'v1', 'x2', 'v2']
     y_labels = ["x$_1$ (m)", "v$_1$ (m/s)", "x$_2$ (m)", "v$_2$ (m/s)"]
+    y_labels_units = ["(m)", "(m/s)", "(m)", "(m/s)"]
     legend_colors, legend_labels = [], []
 
     models_parameters['NN']['pred_trajectory'] = df_nn
@@ -80,19 +81,35 @@ def plot_predicted_trajectory_vs_target(
     mpl.use('pgf')
     plt.style.use('seaborn-v0_8-paper')
     fig = plt.figure(figsize=(20, 15))
-    gs = gridspec.GridSpec(4, 5, width_ratios=[1, 1, 1, 0.5, 1], wspace=0.1)  # The 4th column is used as blank space
-    
     legend_colors.append("#2ca02c")
     legend_labels.append("Target")
 
-    zoom_time_ranges = [(6, 8), (5, 7), (5, 7), (5,7)]
+    # Define list with the names of the models to include in the plot
+    models_for_plot = ['NN', 'PINN', 'proj_nn', 'proj_pinn']
+    num_models_for_plot = len(models_for_plot)
 
-    for (model_idx, model_key) in enumerate(['NN', 'PINN', 'proj_nn']):
+    if(num_models_for_plot == 3):
+        # The 4th column is used as blank space
+        gs = gridspec.GridSpec(4, 5, width_ratios=[1, 1, 1, 0.3, 1], wspace=0.1)  
+
+        # X ranges for the yellow shaded areas of the plots
+        zoom_time_ranges = [(6, 8), (5, 7), (5, 7), (5,7)]
+
+    elif(num_models_for_plot == 4):
+        # The 4th column is used as blank space
+        gs = gridspec.GridSpec(4, 6, width_ratios=[1, 1, 1, 1, 0.3, 1], wspace=0.1) 
+
+        # X ranges for the yellow shaded areas of the plots
+        zoom_time_ranges = [(6, 8), (5, 7), (5, 7), (5,7), (0,1)]
+
+    # Loop over the models to be plotted. Each column corresponds to a different model
+    for (model_idx, model_key) in enumerate(models_for_plot):
 
         df_pred = models_parameters[model_key]['pred_trajectory']
         legend_colors.append(models_parameters[model_key]['color'])
         legend_labels.append(models_parameters[model_key]['name'])
 
+        # For each model, loop over the state variables (x1, v1, x2, v2). Each state variable corresponds to a row in the plot grid
         for i, (var, ylabel) in enumerate(zip(variables, y_labels)):
             ax = fig.add_subplot(gs[i, model_idx])
             ax.plot(df_pred['time(s)'], df_pred[var], label=models_parameters[model_key]['name'], color=models_parameters[model_key]['color'], linewidth = 2)
@@ -118,6 +135,7 @@ def plot_predicted_trajectory_vs_target(
 
             ax.set_xticks(np.arange(0, np.max(df_target['time(s)']), 1))
             ax.tick_params(axis='both', labelsize=25)
+            
             # Set y_axis limits
             y_min = min(df_pred[var].min(), df_target[var].min()) - 0.2
             y_max = max(df_pred[var].max(), df_target[var].max()) + 0.2
@@ -127,25 +145,29 @@ def plot_predicted_trajectory_vs_target(
             if model_idx == 0:
                 ax.set_yticklabels([f'{tick:.1f}' for tick in ax_ticks])  # Only leftmost plots show y-tick labels
 
-            # Create secondary y-axis for RMSE
+            """# Create secondary y-axis for Absolute Error
             ax2 = ax.twinx()
             ax2.plot(df_pred['time(s)'], models_parameters[model_key]['abs_err'], color='#7f7f7f', linewidth = 2.5)
-            ax2.set_ylabel(r'$\epsilon_{\mathrm{abs}}$', color='#7f7f7f', fontsize=40)
+            ax2.set_ylabel(fr'$\epsilon_{{\mathrm{{abs}}}}$ {y_labels_units[i]}', color='#7f7f7f', fontsize=40)
             ax2.tick_params(axis='y', labelcolor='#7f7f7f', labelsize=40)
             ax2_ticks = np.linspace(0, global_mape_max, num=3)
             ax2.set_yticks(ax2_ticks)
-            if model_idx != 2:
+            # remove y-ticks of the second axis from all the plots except the one in the last column
+            if model_idx != (num_models_for_plot - 1): # (-1) because the index starts in 0
                 ax2.set_yticklabels([]) 
-                ax2.set_ylabel(None)
+                ax2.set_ylabel(None)"""
 
-            ### Fourth plot to compare all models ###
-            ax_compare = fig.add_subplot(gs[i, 4])  # Move to the 5th column (skip the 4th)
+            ##################### Plot in the last column a comparison between all the plots ######################
+
+            # (+1) as an empty row for aesthetic reasons was added
+            ax_compare = fig.add_subplot(gs[i, num_models_for_plot + 1])  
+
             # Use the zoom range specific to this row
             zoom_start, zoom_end = zoom_time_ranges[i]
             time_mask = (df_pred['time(s)'] >= zoom_start) & (df_pred['time(s)'] <= zoom_end)
             y_min = float('inf')
             y_max = float('-inf')
-            for other_model_key in ['NN', 'PINN', 'proj_nn']:
+            for other_model_key in models_for_plot:
                 other_pred = models_parameters[other_model_key]['pred_trajectory']
                 ax_compare.plot(other_pred['time(s)'], other_pred[var], label=models_parameters[other_model_key]['name'], color=models_parameters[other_model_key]['color'], linestyle='-', linewidth=3)
                 y_min = min(y_min, other_pred[var][time_mask].min(), df_target[var][time_mask].min())

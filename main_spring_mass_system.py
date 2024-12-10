@@ -144,17 +144,17 @@ def main():
         # /// 6. EVALUATE ONE INITIAL CONDITION (Fig. 2) ///
         initial_state = [-0.15669316, -2.1848829,   0.09043302, -0.16476968]
         n_time_steps  = 165
-        #df_target = get_target_trajectory(config, n_time_steps = n_time_steps, initial_state = torch.tensor(initial_state))
-        #df_nn   = get_predicted_trajectory(config, preprocessed_data, nn_model,   n_time_steps = n_time_steps, initial_state = torch.tensor(initial_state))
-        #df_pinn = get_predicted_trajectory(config, preprocessed_data, pinn_model, n_time_steps = n_time_steps, initial_state = torch.tensor(initial_state))
-        #df_proj_nn   = get_projection_df(initial_state, n_time_steps, nn_model, torch.eye(4), preprocessed_data, config, df_nn)
-        #df_proj_pinn = get_projection_df(initial_state, n_time_steps, pinn_model, torch.eye(4), preprocessed_data, config, df_pinn)
+        df_target = get_target_trajectory(config, n_time_steps = n_time_steps, initial_state = torch.tensor(initial_state))
+        df_nn   = get_predicted_trajectory(config, preprocessed_data, nn_model,   n_time_steps = n_time_steps, initial_state = torch.tensor(initial_state))
+        df_pinn = get_predicted_trajectory(config, preprocessed_data, pinn_model, n_time_steps = n_time_steps, initial_state = torch.tensor(initial_state))
+        df_proj_nn   = get_projection_df(initial_state, n_time_steps, nn_model, torch.eye(4), preprocessed_data, config, df_nn)
+        df_proj_pinn = get_projection_df(initial_state, n_time_steps, pinn_model, torch.eye(4), preprocessed_data, config, df_pinn)
 
         # Make plots
         n_time_steps = 200
-        #plot_predicted_trajectory_vs_target(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn)
-        #plot_predicted_energies_vs_target(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn)
-        #plot_bar_plot(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn, preprocessed_data)
+        plot_predicted_trajectory_vs_target(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn)
+        plot_predicted_energies_vs_target(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn)
+        plot_bar_plot(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn, preprocessed_data)
 
         # /// 7. EVALUATE SEVERAL INITIAL CONDITIONS (Fig. 3 & Table 1 & Table 2) 
         plot_several_initial_conditions(config, preprocessed_data, nn_model, pinn_model, test_initial_conditions, n_time_steps, N_initial_conditions = 100)
