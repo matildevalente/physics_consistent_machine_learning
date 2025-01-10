@@ -1,6 +1,6 @@
 Initial Model,Projected Model,W Matrix,Metric,Mean Improv (%),Overall Improv (%),x1 Improv (%),v1 Improv (%),x2 Improv (%),v2 Improv (%)
 NN,NN,I,RMSE,97.0,61.0,98.0,86.0,88.0,75.0
-NN,NN,I,MAPE,65.0,34.0,76.0,74.0,69.0,55.0
+NN,NN,I,MAPE,65.0,34.0,76.0,74.0,70.0,55.0
 PINN,PINN,I,RMSE,97.0,61.0,98.0,86.0,88.0,74.0
 PINN,PINN,I,MAPE,66.0,36.0,74.0,70.0,72.0,51.0
 NN,PINN,I,RMSE,90.0,48.0,92.0,75.0,86.0,59.0
