@@ -1,6 +1,7 @@
 import os
 import sys
 import math
+import copy
 import time
 import torch 
 import random
@@ -17,7 +18,6 @@ from functools import partial
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-
 
 from src.ltp_system.utils import set_seed
 
@@ -147,7 +147,7 @@ class NeuralNetwork(nn.Module):
 
 
 # --------------------------------------------------------------------------- Methods for PINN Training & Validation
-
+# Compute the mean and std of the losses across the bootstraped models
 def aggregate_losses_(losses_train, losses_train_physics, losses_train_data, losses_val):
     
     # Find max length
@@ -185,7 +185,7 @@ def aggregate_losses_(losses_train, losses_train_physics, losses_train_data, los
     # Return dictionary with aggregated losses    
     return losses_dict
 
-
+# Loop over each model and train all the bootstraped models
 def get_trained_bootstraped_models(config_model, config_plotting, preprocessed_data, loss_fn, checkpoint_dir, device, val_loader, train_data, seed):
     
     if config_model['lambda_physics'] == [0,0,0]:
@@ -242,22 +242,20 @@ def get_trained_bootstraped_models(config_model, config_plotting, preprocessed_d
 
     return models_list, losses_dict_aggregated, training_time
 
-
-def train_model(config_plotting, config_model, model, preprocessed_data, loss_fn, optimizer, device, checkpoint_dir, scheduler, train_loader,val_loader, print_every=10):
+def train_model(config_plotting, config_model, model, preprocessed_data, loss_fn, optimizer, device, checkpoint_dir, scheduler, train_loader, val_loader, print_every=10):
     model.to(device)
     train_losses, train_physics_losses, train_data_losses, val_losses = [], [], [], []
     
     num_epochs = config_model['num_epochs']
-    training_threshold = config_model['training_threshold']
+    best_model_state = None
+    best_model_epoch = 0
     
     # Ensure the directory exists
     if checkpoint_dir is not None:
         if not os.path.exists(checkpoint_dir):
             os.makedirs(checkpoint_dir)
     
-
     for epoch in range(0, num_epochs):
-        
         # --------------------------- Training loop
         model.train()  # set mode
         train_loss_dict = _run_epoch_train(config_model, model, train_loader, loss_fn, optimizer, device, preprocessed_data)
@@ -277,19 +275,24 @@ def train_model(config_plotting, config_model, model, preprocessed_data, loss_fn
             if epoch % print_every == 0:
                 _print_epoch_summary(epoch, train_loss_dict, val_loss)
         
+        # --------------------------- Save current model state if we're at patience interval
+        if len(val_losses) % config_model['patience'] == 0:
+            best_model_state = copy.deepcopy(model.state_dict())
+            best_model_epoch = epoch
+        
         # --------------------------- Check if the convergence criterion is met & early stopping
         if(config_model['APPLY_EARLY_STOPPING']):
-            if stop_training(val_losses, training_threshold):
+            if stop_training(val_losses, train_losses, config_model['patience'], config_model['alpha']):
                 if(config_plotting['PRINT_LOSS_VALUES']):
-                    print("Validation loss converged. Stopping training.\n")
-                break  
-        
+                    print(f"Stopping training as stopping criterion is met.")
+                break
     
     return {
         'train_losses': train_losses,
         'train_physics_losses': train_physics_losses,
         'train_data_losses': train_data_losses,
-        'val_losses': val_losses
+        'val_losses': val_losses,
+        'best_epoch': best_model_epoch
     }
 
 # --------------------------------------------------------------- Residual computation
@@ -393,7 +396,7 @@ def _compute_pinn_loss(config_model, input_norm, y_pred_norm, y_target_norm, pre
         'loss_total_pinn': loss_total_pinn
     }
 
-
+# --------------------------------------------------------------- Training loop
 def _run_epoch_train(config_model, model, train_loader, loss_fn, optimizer, device, preprocessed_data):
     epoch_loss_total = 0.0
     epoch_loss_physics = 0.0
@@ -426,7 +429,7 @@ def _run_epoch_train(config_model, model, train_loader, loss_fn, optimizer, devi
         'train_weighted_data_loss': epoch_loss_data
     }
 
-
+# --------------------------------------------------------------- Validation loop
 def _run_epoch_val(model, val_loader, loss_fn, device, scheduler):
 
     total_val_loss = 0
@@ -451,7 +454,7 @@ def _run_epoch_val(model, val_loader, loss_fn, device, scheduler):
 
     return total_val_loss
 
-
+# --------------------------------------------------------------- Print loss as a func of epochs
 def _print_epoch_summary(epoch, train_loss_dict, val_loss):
     def _percentage(part, whole):
         return (part / whole) * 100
@@ -550,13 +553,42 @@ def load_checkpoints(config_model, model_class, save_dir):
 
 
 # --------------------------------------------------------------------------- Method for early stopping 
-def stop_training(val_loss, threshold_frac):
-  if len(val_loss) < 2:
-    return False
-  diff = np.abs(val_loss[-1] - val_loss[-2])
-  threshold = threshold_frac * val_loss[0]
-  
-  return diff < threshold
+# stopping criteria: use the quotient of generalization loss and progress.
+def stop_training(val_losses, train_losses, patience, alpha):
+    """
+    Implements early stopping using: PQα
+    Stop after first end-of-strip epoch t with GL(t)/Pk(t) > α
+    
+    Args:
+        val_losses (list): History of validation losses
+        train_losses (list): History of training losses
+        alpha (float): Threshold for stopping criterion
+        strip_length (int): Length of training strips
+        
+    Returns:
+        bool: True if training should stop
+    """
+
+
+    if len(val_losses) < patience:  # Need enough points to calculate
+        return False
+        
+    # Calculate generalization loss GL(t)
+    best_loss = min(val_losses)
+    current_loss = val_losses[-1]
+    gl = 100 * ((current_loss / best_loss) - 1)
+    
+    # Calculate training progress Pk(t)
+    recent_losses = train_losses[-patience:]
+    strip_min = min(recent_losses)
+    if strip_min == 0:
+        return gl > 0
+        
+    strip_avg = sum(recent_losses) / patience
+    pk = 1000 * ((strip_avg / strip_min) - 1)
+    
+    # Stop if GL(t)/Pk(t) > α
+    return (gl / pk) > alpha if pk > 0 else gl > 0
 
 
 

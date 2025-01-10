@@ -223,7 +223,7 @@ def plot_bar_plot(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn, p
     ax2.set_ylabel('RMSE (J)', fontsize=30)
     # format x axis
     ax2.set_xticks([(energy_index + 0.3)])
-    ax2.set_xticklabels(['E'], fontsize=40)
+    ax2.set_xticklabels(['$\mathit{E}$'], fontsize=40)
     ax2.set_position([0.83, 0.1, 0.26, 0.45])  # Left, bottom, width, height
     ######################################################################################
 

@@ -193,7 +193,7 @@ def projection_output(config, y_pred_norm, w_matrix, initial_condition_norm, pre
 
     nlp = {'x': p, 'f': objective, 'g': g}       # Create an NLP solver
 
-    options = {'ipopt.print_level' : 0, 'ipopt.sb' : "no", 'ipopt.tol' : 1e-8, 'ipopt.max_iter' : 100, 'ipopt.acceptable_tol' : 1e-8, 'ipopt.derivative_test' : 'first-order'}
+    options = {'ipopt.print_level' : 0, 'ipopt.sb' : "no", 'ipopt.tol' : 1e-3, 'ipopt.max_iter' : 100, 'ipopt.acceptable_tol' : 1e-3, 'ipopt.derivative_test' : 'first-order'}
 
     # Suppress output during solver execution
     with suppress_output():

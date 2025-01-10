@@ -69,7 +69,9 @@ def generate_config_(config, hidden_sizes, activation_fns, options):
             'batch_size'         : config['nn_model']['batch_size'],
             'training_threshold' : config['nn_model']['training_threshold'],
             'n_bootstrap_models' : options['n_bootstrap_models'],
-            'lambda_physics'     : config['nn_model']['lambda_physics'],            
+            'lambda_physics'     : config['nn_model']['lambda_physics'], 
+            'patience'           : options['patience'],
+            'alpha'              : options['alpha']
         },
         'plotting': {
             'output_dir': config['plotting']['output_dir'],
@@ -100,9 +102,8 @@ def get_trained_nn(config, preprocessed_data, idx_arc):
         except FileNotFoundError:
             raise ValueError("Checkpoint not found. Set RETRAIN_MODEL to True or provide a valid checkpoint.")
 
-
 # the the mape and mape uncertainty of the nn aggregated model
-def evaluate_model(nn_models, normalized_inputs, normalized_targets):
+def evaluate_model(index_output_features, nn_models, normalized_inputs, normalized_targets):
     # perform a copy to avoid modifying the original arrays
     normalized_inputs_ = (np.array(normalized_inputs)).copy()
     targets_norm_ = (np.array(normalized_targets)).copy()
@@ -113,22 +114,56 @@ def evaluate_model(nn_models, normalized_inputs, normalized_targets):
 
     m = len(model_pred_uncertainty)
 
-    #
+    # perform a copy to avoid modifying the original arrays
     normalized_model_predictions_ = (np.array(normalized_model_predictions)).copy()
     model_pred_uncertainty_ = (np.array(model_pred_uncertainty)).copy()
 
-    # compute the mape and sem with respect to target
-    mape = np.mean(np.abs((targets_norm_ - normalized_model_predictions_) / targets_norm_)) * 100
-    mape_uncertainty = np.sqrt(np.mean(np.square(model_pred_uncertainty_ / targets_norm_))) * 100
+    # compute the MAPE and MAPE uncertainty with respect to target
+    mape_all_outputs = np.mean(np.abs((targets_norm_ - normalized_model_predictions_) / targets_norm_)) * 100
+    # compute the RMSE and RMSE uncertainty with respect to target
+    rmse_all_outputs = np.sqrt(mean_squared_error(normalized_targets, normalized_model_predictions_))
 
-    rmse = np.sqrt(mean_squared_error(normalized_targets, normalized_model_predictions_))
-    rmse_uncertainty = (1 / np.sqrt(m)) * np.sqrt(np.sum(np.square(model_pred_uncertainty_)))
+    # compute the uncertainties
+    mape_err_list = []
+    rmse_err_list = []
+    targets_norm_ = (np.array(normalized_targets)).copy()
+    normalized_model_predictions_ = (np.array(normalized_model_predictions)).copy()
+    for idx in range(len(normalized_model_predictions_[0])):
+        # compute individual errors
+        mape_err = np.abs((targets_norm_[:, idx] - normalized_model_predictions_[:, idx]) / targets_norm_[:, idx]) * 100
+        rmse_err = np.sqrt(np.mean((targets_norm_[:, idx] - normalized_model_predictions_[:, idx]) ** 2))
 
-    return mape, mape_uncertainty, normalized_model_predictions_, rmse, rmse_uncertainty
+        # append the errors to the lists
+        rmse_err_list.append(rmse_err)
+        mape_err_list.append(mape_err)
 
+    # compute the uncertainties
+    mape_uncertainty = np.std(mape_err_list) / np.sqrt(len(mape_err_list))
+    rmse_uncertainty = np.std(rmse_err_list) / np.sqrt(len(rmse_err_list))
+
+
+    # loop over the output features to compute the MAPE and RMSE for each output feature
+    normalized_model_predictions_ = (np.array(normalized_model_predictions)).copy()
+    targets_norm_ = (np.array(normalized_targets)).copy()
+    if index_output_features is not None:
+        rows_list = []
+        for i in index_output_features:
+            normalized_preds_i   = normalized_model_predictions_[:, i]
+            normalized_targets_i = targets_norm_[:, i]
+
+            # compute the MAPE of the i-th output feature with respect to target
+            mape = np.mean(np.abs((normalized_targets_i - normalized_preds_i) / normalized_targets_i)) * 100
+
+            # compute the RMSE of the i-th output feature with respect to target
+            rmse = np.sqrt(mean_squared_error(normalized_targets_i, normalized_preds_i))
+
+            rows_list.append([index_output_features, mape, rmse])
+
+
+    return mape_all_outputs, mape_uncertainty, normalized_model_predictions_, rmse_all_outputs, rmse_uncertainty, rows_list
 
 # get the mape of the nn projected predictions
-def evaluate_projection(normalized_model_predictions, normalized_targets, normalized_inputs, data_preprocessed, w_matrix):
+def evaluate_projection(index_output_features,normalized_model_predictions, normalized_targets, normalized_inputs, data_preprocessed, w_matrix):
     # perform a copy to avoid modifying the original arrays
     normalized_inputs_ = (np.array(normalized_inputs)).copy()
     normalized_targets_ = (np.array(normalized_targets)).copy()
@@ -137,13 +172,51 @@ def evaluate_projection(normalized_model_predictions, normalized_targets, normal
     # get the normalized projection predicitions of the model
     normalized_proj_predictions  =  get_average_predictions_projected(torch.tensor(normalized_model_predictions_), torch.tensor(normalized_inputs_), data_preprocessed, constraint_p_i_ne, w_matrix) 
     normalized_proj_predictions = np.array(torch.tensor(np.stack(normalized_proj_predictions)))
+    normalized_proj_predictions_ = (np.array(normalized_proj_predictions)).copy()
 
     # compute the mape and sem with respect to target
-    mape = np.mean(np.abs((normalized_targets_ - normalized_proj_predictions) / normalized_targets_)) * 100
-    rmse = np.sqrt(np.mean((normalized_targets_ - normalized_proj_predictions) ** 2))
+    mape_all_outputs = np.mean(np.abs((normalized_targets_ - normalized_proj_predictions_) / normalized_targets_)) * 100
+    rmse_all_outputs = np.sqrt(np.mean((normalized_targets_ - normalized_proj_predictions_) ** 2))
 
-    return mape, rmse
+    # compute the uncertainties
+    mape_err_list = []
+    rmse_err_list = []
+    for idx in range(len(normalized_proj_predictions_[0])):
+        # compute individual errors
+        mape_err = np.abs((normalized_targets_[:, idx] - normalized_proj_predictions_[:, idx]) / normalized_targets_[:, idx]) * 100
+        rmse_err = np.sqrt(np.mean((normalized_targets_[:, idx] - normalized_proj_predictions_[:, idx]) ** 2))
 
+        # append the errors to the lists
+        rmse_err_list.append(rmse_err)
+        mape_err_list.append(mape_err)
+
+    # compute the uncertainties
+    mape_uncertainty = np.std(mape_err_list) / np.sqrt(len(mape_err_list))
+    rmse_uncertainty = np.std(rmse_err_list) / np.sqrt(len(rmse_err_list))
+    
+    # loop over the output features to compute the MAPE and RMSE for each output feature
+    if index_output_features is not None:
+        rows_list = []
+        for i in index_output_features:
+            # copy to avoid modifying the original arrays
+            normalized_proj_predictions_ = (np.array(normalized_proj_predictions)).copy()
+            normalized_targets_ = (np.array(normalized_targets)).copy()
+            
+            # get the i-th output feature
+            normalized_preds_i   = normalized_proj_predictions_[:, i]
+            normalized_targets_i = normalized_targets_[:, i]
+
+            # compute the MAPE of the i-th output feature with respect to target
+            mape = np.mean(np.abs((normalized_targets_i - normalized_preds_i) / normalized_targets_i)) * 100
+
+            # compute the RMSE of the i-th output feature with respect to target
+            rmse = np.sqrt(mean_squared_error(normalized_targets_i, normalized_preds_i))
+
+            rows_list.append([index_output_features, mape, rmse])
+
+    print("Projection rows_list = ", rows_list)
+
+    return mape_all_outputs, rmse_all_outputs, mape_uncertainty, rmse_uncertainty, rows_list
 
 # compute the number of weights and biases in the nn
 def compute_parameters(layer_config):
@@ -156,8 +229,8 @@ def compute_parameters(layer_config):
 
     return n_weights + n_biases
 
-#
-def plot_histogram_with_params(architectures, options, config_plotting):
+# plot the histogram of the number of parameters for the nn architectures
+def plot_histogram_with_params(architectures, options):
     min_parameters = compute_parameters([options['min_neurons_per_layer']] * options['min_hidden_layers'])
     max_parameters = compute_parameters([options['max_neurons_per_layer']] * options['max_hidden_layers'])
     
@@ -173,12 +246,12 @@ def plot_histogram_with_params(architectures, options, config_plotting):
     plt.legend()
 
     # Save figures
-    output_dir = config_plotting['output_dir']  + "Figures_6a"
+    output_dir = options['output_dir'] + "table_results"
     os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, f"Figure_6a_extra")
-    savefig(save_path, pad_inches = 0.2)
+    save_path = os.path.join(output_dir, f"architectures_histogram.pdf")
+    savefig(save_path, pad_inches=0.2)
 
-#
+# generate random nn architectures
 def get_random_architectures(options):
 
     print("\nGenerating random NN architectures for Figure 6a.")
@@ -202,87 +275,145 @@ def get_random_architectures(options):
 
     return architectures_list
 
-
 # main function to run the experiment
 def run_experiment_6a(config_original, filename, options):
     # /// 1. EXTRACT DATASET & PREPROCESS THE DATASET///
+    # load the dataset  
     _, full_dataset = load_dataset(config_original, dataset_dir = filename)
+    # preprocess the dataset
     preprocessed_data = DataPreprocessor(config_original)
     preprocessed_data.setup_dataset(full_dataset.x, full_dataset.y)  
+    # load the data
     normalized_inputs, normalized_targets = load_data( filename, preprocessed_data)
     
-    architectures_file_path = 'output/ltp_system/checkpoints/different_architectures/architectures.csv'
-    results_file_path = 'output/ltp_system/checkpoints/different_architectures/results.csv'
+    # define the file paths for the results
+    table_dir = os.path.join(options['output_dir'], 'table_results')
+    # create the directory if it doesn't exist
+    os.makedirs(table_dir, exist_ok=True)
+    architectures_file_path = os.path.join(table_dir, 'architectures.csv')
+    all_results_file_path = os.path.join(table_dir, 'all_outputs_mean_results.csv')
+    specific_outputs_file_path = os.path.join(table_dir, 'specific_outputs_results.csv')
 
+    # /// 2. GENERATE RANDOM ARCHITECTURES OR LOAD THEM FROM FILE ACCORDING TO THE RETRAIN_MODEL OPTION ///
     if options['RETRAIN_MODEL']:
+        # generate random nn architectures
         random_architectures_list = get_random_architectures(options)
+        # save the nn architectures to a file
         with open(architectures_file_path, mode='w', newline='') as file:
             writer = csv.writer(file)
             writer.writerows(random_architectures_list)
     else:
+        # load the nn architectures from a file
         random_architectures_list = []
         with open(architectures_file_path, mode='r') as file:
             reader = csv.reader(file)
             random_architectures_list = [row for row in reader]
         random_architectures_list = [[int(num) for num in sublist] for sublist in random_architectures_list]
 
-    print(random_architectures_list)
-    plot_histogram_with_params(random_architectures_list, options, config_original['plotting'])
+    print("random_architectures_list = ", random_architectures_list)
+    plot_histogram_with_params(random_architectures_list, options)
     
+    # /// 3. TRAIN THE NN FOR EACH ARCHITECTURE AND EVALUATE THE MODEL ///
+    output_features = config_original['dataset_generation']['output_features']
+    index_output_features = [output_features.index(feature) for feature in options['extract_results_specific_outputs']]
     if options['RETRAIN_MODEL']:
+        # initialize the results list
         results = []
+        outputs_specific_results = []
+        # iterate over the nn architectures
         for idx, hidden_sizes in enumerate(tqdm(random_architectures_list, desc="Evaluating Different Architectures")):
-
+            # generate the activation functions for the nn
             activation_fns = [options['activation_func']] * len(hidden_sizes) 
-
+            # generate the config for the nn
             config_ = generate_config_(config_original, hidden_sizes, activation_fns, options)
 
             # train model and count training time
             nn_models, _, _, training_time = get_trained_nn(config_, preprocessed_data, idx)
 
             # perform model predictions with the trained nn
-            mape_nn, mape_uncertainty_nn, normalized_model_predictions, rmse_nn, rmse_uncertainty_nn  = evaluate_model(nn_models, normalized_inputs, normalized_targets)
+            mape_nn, mape_uncertainty_nn, normalized_model_predictions, rmse_nn, rmse_uncertainty_nn, results_output_list_nn  = evaluate_model(index_output_features, nn_models, normalized_inputs, normalized_targets)
 
             # perform model predictions with the trained nn
-            mape_proj, rmse_proj = evaluate_projection(normalized_model_predictions, normalized_targets, normalized_inputs, preprocessed_data, options['w_matrix'])
+            mape_proj, rmse_proj, mape_proj_uncertainty, rmse_proj_uncertainty, results_output_list_proj = evaluate_projection(index_output_features, normalized_model_predictions, normalized_targets, normalized_inputs, preprocessed_data, options['w_matrix'])
 
+            # compute the number of parameters for the nn architecture
             params = compute_parameters(hidden_sizes)
-            results.append((params, mape_nn, mape_uncertainty_nn, mape_proj, rmse_nn, rmse_uncertainty_nn, rmse_proj, training_time))
 
-        params, mapes_nn, mape_uncertainties_nn, mapes_proj, rmses_nn, rmse_uncertainties_nn, rmses_proj, times = zip(*results)
+            # append the results for the whole dataset
+            results.append((params, mape_nn, mape_uncertainty_nn, mape_proj, mape_proj_uncertainty, rmse_nn, rmse_uncertainty_nn, rmse_proj, rmse_proj_uncertainty, training_time))
+
+            # append the results for the specific outputs.   # index of output,           mape nn        ,            rmse nn        ,             mape proj     ,            rmse proj
+            outputs_specific_results.append((params, results_output_list_nn, results_output_list_proj))
+        
+        # /// 4. CREATE THE DATAFRAME FOR THE RESULTS CONCERNING THE WHOLE DATASET ///
+        params, mapes_nn, mape_uncertainties_nn, mapes_proj, mape_proj_uncertainties, rmses_nn, rmse_uncertainties_nn, rmses_proj, rmse_proj_uncertainties, times = zip(*results)
         data = {
             'architectures': random_architectures_list, 
             'num_params': params,
             'mapes_nn': mapes_nn,
             'uncertanties_mape_nn': mape_uncertainties_nn,
             'mapes_proj': mapes_proj,
+            'uncertanties_mape_proj': mape_proj_uncertainties,
             'rmses_nn': rmses_nn, 
             'uncertanties_rmse_nn': rmse_uncertainties_nn,
             'rmses_proj': rmses_proj,
+            'uncertanties_rmse_proj': rmse_proj_uncertainties,
             'model_training_time': times
         }
         # Create a DataFrame from the results and store as .csv in a local directory
-        df = pd.DataFrame(data)
-        df = df.sort_values(by='num_params', ascending=True)
-        df.to_csv(results_file_path, index=False)
+        df_all = pd.DataFrame(data)
+        df_all = df_all.sort_values(by='num_params', ascending=True)
+        df_all.to_csv(all_results_file_path, index=False)
         
-        return df
-    else:
-        df = pd.read_csv(results_file_path)
-        return df
 
-# Plot the results
-def Figure_6a(config_plotting, df):
+        # /// 5. CREATE THE DATAFRAME FOR THE RESULTS CONCERNING THE SPECIFIC OUTPUTS ///
+        if options['extract_results_specific_outputs'] is not None:
+            # initialize the results list
+            params, results_output_list_nn, results_output_list_proj  = zip(*outputs_specific_results)
+            specific_outputs_rows = []
+
+            # iterate over the nn architectures and number of parameters
+            for architecture_idx, (architecture, param) in enumerate(zip(random_architectures_list, params)):
+                
+                # iterate over each output feature 
+                for output_idx, output_feature in enumerate(index_output_features):
+
+                    # for each architecture and output feature, get the mape and rmse of the nn and the nn projection
+                    mape_nn = results_output_list_nn[architecture_idx][output_idx][1]
+                    rmse_nn = results_output_list_nn[architecture_idx][output_idx][2]
+                    mape_proj = results_output_list_proj[architecture_idx][output_idx][1]
+                    rmse_proj = results_output_list_proj[architecture_idx][output_idx][2]
+
+                    row = [architecture, param, output_feature, mape_nn, mape_proj, rmse_nn, rmse_proj]
+
+                    # append the rows to the data list
+                    specific_outputs_rows.append(row)
+
+            # Create a DataFrame from the results and store as .csv in a local directory
+            cols_names = ['architecture', 'num_params', 'output_feature', 'mapes_nn', 'mapes_proj', 'rmses_nn', 'rmses_proj']
+            df_specific_outputs = pd.DataFrame(specific_outputs_rows, columns = cols_names)
+            df_specific_outputs = df_specific_outputs.sort_values(by='num_params', ascending=True)
+            df_specific_outputs.to_csv(specific_outputs_file_path, index=False)
+
+        return df_all, df_specific_outputs
+    else:
+        df_all = pd.read_csv(all_results_file_path)
+        df_specific_outputs = pd.read_csv(specific_outputs_file_path)
+
+        return df_all, df_specific_outputs
+
+# Plot the results for the mean of all outputs
+def Figure_6a_mean_all_outputs(options, df):
 
     # Plot MAPE for NN and NN projection
-    fig, ax1 = plt.subplots(figsize=(10, 5))
+    fig, ax1 = plt.subplots(figsize=(7, 5))
     ax1.set_xlabel('Number of Parameters', fontsize=24)
     ax1.set_ylabel('MAPE (\%)', fontsize=24)
     ax1.plot(df['num_params'], df['mapes_nn'], '-o', color=models_parameters['NN']['color'], label='NN')
     ax1.plot(df['num_params'], df['mapes_proj'], '-o', color=models_parameters['proj_nn']['color'], linestyle='--', label='NN projection')
     ax1.tick_params(axis='y', labelsize=24)
     ax1.tick_params(axis='x', labelsize=24)
-    ax1.legend(loc='upper right', fontsize=24)
+    ax1.legend(loc='upper right', fontsize=20)
     # Create a second y-axis for the improvement rate
     ax2 = ax1.twinx()
     ax2.set_ylabel('MAPE Variation Rate (\%)', fontsize=24, color='gray')
@@ -294,29 +425,35 @@ def Figure_6a(config_plotting, df):
     #fig.legend(loc='upper right', fontsize=18, ncol=3, bbox_to_anchor=(0.5, 1.1))
     # Save figure
     fig.tight_layout()
-    output_dir = config_plotting['output_dir'] + "Figures_6a"
+    output_dir = options['output_dir'] + "plots"
     os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, "Figure_6a_mape")
-    fig.savefig(save_path, pad_inches=0.2)
+    save_path = os.path.join(output_dir, "mean_all_outputs_mape.pdf")
+    fig.savefig(save_path, pad_inches=0.2, format='pdf', dpi=300, bbox_inches='tight')
 
 
     # Initialize the figure
-    fig, ax1 = plt.subplots(figsize=(10, 5))
+    fig, ax1 = plt.subplots(figsize=(7, 5))
     # Plot RMSE for NN and NN projection
     ax1.set_xlabel('Number of Parameters', fontsize=24)
-    ax1.set_ylabel('RMSE', fontsize=24)
+    ax1.set_ylabel('RMSE', fontsize=24, labelpad=10)
     ax1.set_yscale('log')
-    ax1.set_ylim(5e-2, 6e-1)
-    ax1.set_yticks([5e-2, 1e-1, 2e-1, 4e-1])
-    ax1.set_yticklabels(['5', '10', '20', '40'])
+    ax1.set_ylim(5e-2, 30e-2)
+    ax1.set_yticks([5e-2, 1e-1, 2e-1])
+    ax1.set_yticklabels(['5', '10', '20'])
+        # Plot lines without error bars
     ax1.plot(df['num_params'], df['rmses_nn'], '-o', color=models_parameters['NN']['color'], label='NN')
-    ax1.plot(df['num_params'], df['rmses_proj'], '-o', color=models_parameters['proj_nn']['color'], linestyle='--', label='NN projection')
+    ax1.plot(df['num_params'], df['rmses_proj'],'-o', color=models_parameters['proj_nn']['color'],linestyle='--', label='NN projection')
+    # Add error bars to the plots
+    #ax1.errorbar(df['num_params'], df['rmses_nn'], yerr=df['uncertanties_rmse_nn'],fmt='-o', color=models_parameters['NN']['color'], label='NN', capsize=5)
+    #ax1.errorbar(df['num_params'], df['rmses_proj'], yerr=df['uncertanties_rmse_proj'],fmt='-o', color=models_parameters['proj_nn']['color'], linestyle='--', label='NN projection', capsize=5)
     ax1.tick_params(axis='y', labelsize=24)
     ax1.tick_params(axis='x', labelsize=24)
-    ax1.legend(loc='right', fontsize=24)
+    ax1.legend(loc='right', fontsize=20)
     # Add scientific notation label at the top of the y-axis
-    ax1.text(plt.gca().get_position().bounds[0] - 0.13, 1.05, r'$\times 10^{-2}$', 
-            transform=plt.gca().transAxes, fontsize=24, ha='left', va='center')
+    plt.minorticks_off()
+    y_max = plt.gca().get_ylim()[1] * 3.62
+    x_min = plt.gca().get_ylim()[0] - 0.05
+    ax1.text(x_min, y_max, r'($\times10^{-2}$)', transform=plt.gca().transAxes, fontsize=24, ha='left', va='center')
     # Create a second y-axis for the improvement rate
     ax2 = ax1.twinx()
     ax2.set_ylabel('RMSE Variation Rate (\%)', fontsize=24, color='gray')
@@ -324,13 +461,132 @@ def Figure_6a(config_plotting, df):
     ax2.plot(df['num_params'], improvement_rate_rmse, '-o', color='gray', label='Improvement Rate (%)')  # Set line color to gray
     ax2.tick_params(axis='y', labelsize=24, colors='gray')  # Set tick color to gray
     ax2.spines['right'].set_color('gray')  # Set color of the second y-axis spine to gray
-    fig.legend(loc='right', fontsize=18, ncol=3, bbox_to_anchor=(0.5, 1.1))
+    #fig.legend(loc='right', fontsize=18, ncol=3, bbox_to_anchor=(0.5, 1.1))
     # Save figure
     fig.tight_layout()
-    output_dir = config_plotting['output_dir'] + "Figures_6a"
+    output_dir = options['output_dir'] + "plots"
     os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, "Figure_6a_rmse")
-    fig.savefig(save_path, pad_inches=0.2)
-    plt.show()
+    save_path = os.path.join(output_dir, "mean_all_outputs_rmse.pdf")
+    fig.savefig(save_path, pad_inches=0.2, format='pdf', dpi=300, bbox_inches='tight')
 
+# Plot the results for the specific outputs
+def Figure_6a_specific_outputs(options, df_all, df_specific, output_features_names):
+    # Columns: architecture, num_params, output_feature, mapes_nn, mapes_proj, rmses_nn, rmses_proj
+
+    # Create a grid of subplots for specific outputs
+    n_outputs = len(df_specific['output_feature'].unique())
+    n_cols = 3
+    n_rows = (n_outputs + 1) // 2  # Ceiling division to handle odd number of plots
+    # Initialize the figure with same style as MAPE plot
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(16, 4.5*n_rows))
+    axes = axes.flatten()
+    plot_idx = 0
+    y_pos = [0.45, 0.35, 0.35]
+
+    for output_idx in df_specific['output_feature'].unique():
+        # Get data for specific output
+        ax = axes[plot_idx]
+        df_specific_output = df_specific[df_specific['output_feature'] == output_idx]
+        
+        # Set axis labels and scale
+        ax.set_xlabel('Number of Parameters', fontsize=24, fontweight='bold')
+        # Only add ylabel for first plot in each row
+        if plot_idx % n_cols == 0:  
+            ax.set_ylabel('MAPE (\%)', fontsize=24, fontweight='bold')
+        else:
+            ax.set_ylabel('')
+        ax.set_yscale('log')
+        
+        # Make frame more visible
+        for spine in ax.spines.values():
+            spine.set_linewidth(2)
+            spine.set_color('black')
+        
+        # Plot with thicker lines and larger markers
+        line1, = ax.plot(df_specific_output['num_params'], df_specific_output['mapes_nn'], '-o', color=models_parameters['NN']['color'],linewidth=3, markersize=10)
+        line2, = ax.plot(df_specific_output['num_params'], df_specific_output['mapes_proj'], '-o', color=models_parameters['proj_nn']['color'], linestyle='--',linewidth=3, markersize=10)
+        
+        # Customize the plot
+        ax.tick_params(axis='both', which='major', labelsize=24, width=2, length=6)
+        ax.tick_params(axis='both', which='minor', width=2, length=4)
+        ax.set_title(f'{output_features_names[output_idx]}', fontsize=28, pad=15, fontweight='bold')
+        
+        # Set y-axis range and ticks
+        ax.set_ylim(8, 150)
+        ax.set_yticks([10, 20, 40, 80])  # Remove e0 since these are already the actual values
+        ax.set_yticklabels(['10', '20', '40', '80'])
+        ax.minorticks_off()
+        plot_idx += 1
+    
+    # Remove any extra subplots
+    for idx in range(plot_idx, len(axes)):
+        fig.delaxes(axes[idx])
+    lines = [line1, line2]
+    labels = ['NN', 'NN projection']
+    # Add single legend at the top
+    fig.legend(lines, labels, loc='center', bbox_to_anchor=(0.5, 0.34), ncol=3, fontsize=24, frameon=True)
+    # Adjust layout and save
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.85)  # Make room for legend
+    output_dir = options['output_dir'] + "plots"
+    os.makedirs(output_dir, exist_ok=True)
+    save_path = os.path.join(output_dir, "specific_outputs_mape.pdf")
+    fig.savefig(save_path, pad_inches=0.3, format='pdf', dpi=300, bbox_inches='tight')
+
+
+    # Initialize the figure with same style as RMSE plot
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(16, 4.5*n_rows))
+    axes = axes.flatten()
+    plot_idx = 0
+    y_pos = [0.45, 0.45, 0.45]
+
+    for output_idx in df_specific['output_feature'].unique():
+        # Get data for specific output
+        ax = axes[plot_idx]
+        df_specific_output = df_specific[df_specific['output_feature'] == output_idx]
+        
+        # Set axis labels and scale
+        ax.set_xlabel('Number of Parameters', fontsize=24)
+        # Only add ylabel for first plot in each row
+        if plot_idx % n_cols == 0:  
+            ax.set_ylabel('RMSE', fontsize=24, fontweight='bold')
+        else:
+            ax.set_ylabel('')
+        ax.set_yscale('log')
+        
+        # Make frame more visible
+        for spine in ax.spines.values():
+            spine.set_linewidth(2)
+            spine.set_color('black')
+        
+        # Plot with thicker lines and larger markers
+        line1, = ax.plot(df_specific_output['num_params'], df_specific_output['rmses_nn'], '-o', color=models_parameters['NN']['color'],linewidth=3, markersize=10)
+        line2, = ax.plot(df_specific_output['num_params'], df_specific_output['rmses_proj'], '-o', color=models_parameters['proj_nn']['color'], linestyle='--',linewidth=3, markersize=10)
+        
+        # Customize the plot
+        ax.tick_params(axis='both', which='major', labelsize=24, width=2, length=6)
+        ax.tick_params(axis='both', which='minor', width=2, length=4)
+        ax.set_title(f'{output_features_names[output_idx]}', fontsize=28, pad=15)
+        
+        # Set y-axis range and ticks
+        ax.set_ylim(1.5e-2, 40e-2)
+        ax.set_yticks([2e-2, 5e-2, 10e-2, 20e-2])
+        ax.set_yticklabels(['2', '5', '10', '20'])
+        # Adjust y position based on plot index to ensure consistent placement
+        ax.text(0, y_pos[plot_idx], r'($\times10^{-2}$)', transform=ax.get_yaxis_transform(), fontsize=20)
+        
+        plot_idx += 1
+    
+    # Remove any extra subplots
+    for idx in range(plot_idx, len(axes)):
+        fig.delaxes(axes[idx])
+    # Add single legend at the top
+    fig.legend(lines, labels, loc='center', bbox_to_anchor=(0.5, 0.34), ncol=3, fontsize=24, frameon=True)
+    # Adjust layout and save
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.85)  # Make room for legend
+    output_dir = options['output_dir'] + "plots"
+    os.makedirs(output_dir, exist_ok=True)
+    save_path = os.path.join(output_dir, "specific_outputs_rmse.pdf")
+    fig.savefig(save_path, pad_inches=0.3, format='pdf', dpi=300, bbox_inches='tight')
 

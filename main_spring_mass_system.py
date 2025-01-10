@@ -139,7 +139,7 @@ def main():
         pinn_model, pinn_losses = get_trained_pinn(config, preprocessed_data, checkpoint_dir=os.path.join('output', 'spring_mass_system', 'checkpoints', 'pinn'))
         
         # /// 5. PLOT LOSS CURVES FOR THE NN AND PINN ///
-        #plot_loss_curves(config, nn_losses, pinn_losses)
+        plot_loss_curves(config, nn_losses, pinn_losses)
 
         # /// 6. EVALUATE ONE INITIAL CONDITION (Fig. 2) ///
         initial_state = [-0.15669316, -2.1848829,   0.09043302, -0.16476968]
@@ -153,8 +153,8 @@ def main():
         # Make plots
         n_time_steps = 200
         plot_predicted_trajectory_vs_target(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn)
-        #plot_predicted_energies_vs_target(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn)
-        #plot_bar_plot(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn, preprocessed_data)
+        plot_predicted_energies_vs_target(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn)
+        plot_bar_plot(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn, preprocessed_data)
 
         # /// 7. EVALUATE SEVERAL INITIAL CONDITIONS (Fig. 3 & Table 1 & Table 2) 
         plot_several_initial_conditions(config, preprocessed_data, nn_model, pinn_model, test_initial_conditions, n_time_steps, N_initial_conditions = 100)

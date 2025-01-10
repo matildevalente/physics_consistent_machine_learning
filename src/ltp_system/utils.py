@@ -61,15 +61,6 @@ def savefig(filename, pad_inches, crop=True):
         else:
             plt.savefig('{}.pdf'.format(filename))
         
-        # Try saving in EPS format with error handling
-        try:
-            if crop:
-                plt.savefig('{}.eps'.format(filename), bbox_inches='tight', pad_inches=pad_inches)
-            else:
-                plt.savefig('{}.eps'.format(filename))
-        except Exception as e:
-            logging.error(f"An error occurred while saving the EPS file: {e}")
-            print(f"Could not save the EPS file due to an error: {e}")
             
     except Exception as e:
         logging.error(f"An error occurred while saving the file: {e}")

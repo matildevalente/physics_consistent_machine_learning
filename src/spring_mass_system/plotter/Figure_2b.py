@@ -126,6 +126,10 @@ def plot_predicted_trajectory_vs_target(
             # Only set xlabel for the bottom row
             if i == 3:
                 ax.set_xlabel('Time (s)', fontsize=28)
+
+            # Add title to the first plot of each column
+            if i == 0:
+                ax.set_title(models_parameters[model_key]['name'], fontsize=28)
             
             # Remove x and y labels for other plots
             if model_idx != 0:
@@ -167,9 +171,21 @@ def plot_predicted_trajectory_vs_target(
             time_mask = (df_pred['time(s)'] >= zoom_start) & (df_pred['time(s)'] <= zoom_end)
             y_min = float('inf')
             y_max = float('-inf')
-            for other_model_key in models_for_plot:
+            line_styles = {
+                'marker': [None, None, 'x', None],
+                'marker_width': [None, None, 2, None],
+                'marker_size': [None, None, 6, None],
+                'line_width': [4, 2, 4, 2]
+            } 
+            for j, other_model_key in enumerate(models_for_plot):
                 other_pred = models_parameters[other_model_key]['pred_trajectory']
-                ax_compare.plot(other_pred['time(s)'], other_pred[var], label=models_parameters[other_model_key]['name'], color=models_parameters[other_model_key]['color'], linestyle='-', linewidth=3)
+                ax_compare.plot(
+                    other_pred['time(s)'], other_pred[var], 
+                    label=models_parameters[other_model_key]['name'], 
+                    color=models_parameters[other_model_key]['color'], 
+                    linestyle='-', linewidth=line_styles['line_width'][j],
+                    marker=line_styles['marker'][j],markersize=line_styles['marker_size'][j], markeredgewidth=line_styles['marker_width'][j]
+                )
                 y_min = min(y_min, other_pred[var][time_mask].min(), df_target[var][time_mask].min())
                 y_max = max(y_max, other_pred[var][time_mask].max(), df_target[var][time_mask].max())
             padding = 0.05 * (y_max - y_min)

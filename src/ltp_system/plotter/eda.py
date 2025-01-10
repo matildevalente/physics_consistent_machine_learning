@@ -23,25 +23,8 @@ pgf_with_latex = {                      # setup matplotlib to use latex for outp
 
 plt.rcParams.update(pgf_with_latex)
 
-output_labels_latex = [
-    r'O$_2$(X)', 
-    r'O$_2$(a$^1\Delta_g$)', 
-    r'O$_2$(b$^1\Sigma^+_g$)', 
-    r'O$_2$(Hz)', 
-    r'O$_2$(+,X)', 
-    r'O($^3$P)', 
-    r'O($^1$D)', 
-    r'O(+,gnd)', 
-    r'O(-,gnd)', 
-    r'O$_3$(X)', 
-    r'O$_3$(exc)', 
-    r'T$_g$', 
-    r'T$_{nw}$', 
-    r'Red$_{E}$', 
-    r'v$_{d}$', 
-    r'E$_{mean}$', 
-    r'n$_{e}$'
-]
+output_labels_latex = [r'O$_2$(X)', r'O$_2$(a$^1\Delta_g$)', r'O$_2$(b$^1\Sigma_g^+$)', r'O$_2$(Hz)', r'O$_2^+$', r'O($^3P$)', r'O($^1$D)', r'O$^+$', r'O$^-$', r'O$_3$', r'O$_3^*$', r'$T_g$', r'T$_{nw}$', r'$E/N$', r'$v_d$', r'T$_{e}$', r'$n_e$']
+
 
 
 from src.ltp_system.utils import figsize, savefig
@@ -144,7 +127,7 @@ def densities_piechart_(config, y_data):
     plt.axis('equal')  
 
     # Save figure
-    output_dir = config['plotting']['output_dir'] + "EDA/"
+    output_dir = config['plotting']['output_dir'] + "Figures_4/Figure_4c/"
     os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, f"pie_plot")
     savefig(save_path, pad_inches = 0.2)

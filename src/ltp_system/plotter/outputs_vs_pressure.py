@@ -16,7 +16,7 @@ from src.ltp_system.data_prep import DataPreprocessor, LoadDataset, setup_datase
 from src.ltp_system.pinn_nn import get_trained_bootstraped_models, load_checkpoints, NeuralNetwork, get_average_predictions, get_predictive_uncertainty
 from src.ltp_system.projection import get_average_predictions_projected,constraint_p_i_ne
 
-output_labels = [r'O$_2$(X)', r'O$_2$(a$^1\Delta_g$)', r'O$_2$(b$^1\Sigma_g^+$)', r'O$_2$(Hz)', r'O$_2^+$', r'O($^3P$)', r'O($^1$D)', r'O$^+$', r'O$^-$', r'O$_3$', r'O$_3^*$', r'$T_g$', r'T$_{nw}$', r'Red\_E', r'$v_d$', r'E$_{\mathrm{mean}}$', r'$n_e$']
+output_labels = [r'O$_2$(X)', r'O$_2$(a$^1\Delta_g$)', r'O$_2$(b$^1\Sigma_g^+$)', r'O$_2$(Hz)', r'O$_2^+$', r'O($^3P$)', r'O($^1$D)', r'O$^+$', r'O$^-$', r'O$_3$', r'O$_3^*$', r'$T_g$', r'T$_{nw}$', r'E$_{red}$', r'$v_d$', r'T$_{e}$', r'$n_e$']
 
 pgf_with_latex = {                      # setup matplotlib to use latex for output
     "pgf.texsystem": "pdflatex",        # change this if using xetex or lautex
@@ -46,7 +46,6 @@ def get_trained_nn(config, data_preprocessing_info, idx_dataset, idx_sample, tra
         except FileNotFoundError:
             raise ValueError("Checkpoint not found. Set RETRAIN_MODEL to True or provide a valid checkpoint.")
 
-
 # load and preprocess the test dataset from a local directory
 def load_data(test_filename, data_preprocessing_info):
     # load and extract experimental dataset
@@ -66,6 +65,7 @@ def load_data(test_filename, data_preprocessing_info):
  
     return normalized_inputs, normalized_targets
 
+# generate constant pressure inputs 
 def generate_p_inputs(preped_data, normalized_inputs_):
     
     N_points = 1000
@@ -125,6 +125,7 @@ def evaluate_projection(normalized_proj_predictions, normalized_targets):
 
     return mape, rmse
 
+# get the data for the Figure 6b
 def get_data_Figure_6b(config, networks, file_path, w_matrix, data_preprocessing_info):
   
     # /// 1. EXTRACT DATASET & PREPROCESS THE DATASET///
@@ -179,6 +180,7 @@ def get_data_Figure_6b(config, networks, file_path, w_matrix, data_preprocessing
 
     return denormalized_predictions_dict, errors_dict
 
+# append the error values to the error data
 def append_error_values(error_data, output, discrete_targets, discrete_nn_predictions, discrete_nn_proj_predictions):
     # Convert targets and predictions to numpy array and make copies
     discrete_targets_ = np.array(discrete_targets)
@@ -219,11 +221,13 @@ def Figure_6b(config, denormalized_predictions_dict, errors_dict, test_case):
     nn_proj_outputs  =  denormalized_predictions_dict['nn_proj_outputs']
     nn_model_pred_uncertainties = denormalized_predictions_dict['nn_model_pred_uncertainties']
 
-    error_data = []
+    error_normalized_data = []
+    error_denormalized_data = []
     for i, output in enumerate(outputs):
 
-        append_error_values(error_data, output, discrete_targets[:,i], discrete_nn_predictions[:,i], discrete_nn_proj_predictions[:,i])
-        
+        append_error_values(error_denormalized_data, output, discrete_targets[:,i], discrete_nn_predictions[:,i], discrete_nn_proj_predictions[:,i])
+        append_error_values(error_normalized_data, output, discrete_targets[:,i], discrete_nn_predictions[:,i], discrete_nn_proj_predictions[:,i])
+
         # Resetting the current figure
         plt.clf()  # Clear the current figure
         mpl.use('pgf')
@@ -269,148 +273,14 @@ def Figure_6b(config, denormalized_predictions_dict, errors_dict, test_case):
         plt.close()
 
     # Convert error data to a DataFrame and save to local directory
-    error_df = pd.DataFrame(error_data)
-    csv_save_path = os.path.join(output_dir, "error_values.csv")
-    error_df.to_csv(csv_save_path, index=False)
-
-# physical plot
-def plot_output_vs_pressure_multi_i(data_prepocessed, dataset_names, networks, num_models, path):
-
-  err_out = ["err_" + s for s in data_prepocessed.output]
-  df_plot = pd.DataFrame(columns=["exp_or_model"]+data_prepocessed.input + data_prepocessed.output + err_out)
-  input_data_total, output_data_total, input_data_exp_total, output_data_exp_total, output_data_exp_pred_total,output_data_norm_error_total = np.array([]),np.array([]),np.array([]),np.array([]),np.array([]),np.array([])
-  for dataset_name in dataset_names:
-    # 1. Extract experimental dataset
-    full_dataset_exp = LoadDataset(dataset_name)
-    output_data_exp, input_data_exp = full_dataset_exp.y, full_dataset_exp.x
+    error_denormalized_df = pd.DataFrame(error_denormalized_data)
+    csv_save_path = os.path.join(output_dir, "error_denormalized_data.csv")
+    error_denormalized_df.to_csv(csv_save_path, index=False)
     
-    # 2. Apply log transform to the skewed features
-    if len(data_prepocessed.skewed_features_in) > 0:
-        input_data_exp[:, data_prepocessed.skewed_features_in] = torch.log1p(torch.tensor(input_data_exp[:, data_prepocessed.skewed_features_in]))
-
-    if len(data_prepocessed.skewed_features_out) > 0:
-        output_data_exp[:, data_prepocessed.skewed_features_out] = torch.log1p(torch.tensor(output_data_exp[:, data_prepocessed.skewed_features_out]))
-
-    # 3. normalize experimental points with the model used on the training data
-    input_data_exp_norm = torch.cat([torch.from_numpy(scaler.transform(input_data_exp[:, i:i+1])) for i, scaler in enumerate(data_prepocessed.scalers_input)], dim=1)
-    output_data_exp_norm = torch.cat([torch.from_numpy(scaler.transform(output_data_exp[:, i:i+1])) for i, scaler in enumerate(data_prepocessed.scalers_output)], dim=1)
-    output_data_exp_norm_pred_contraint =  get_average_predictions(networks, torch.tensor(input_data_exp_norm), torch.tensor(num_models), len(data_prepocessed.output))
-
-    # 4. generate sample
-    N_points, p_max, p_min, i_fixed, R_fixed = 2000, torch.max(torch.tensor(input_data_exp[:,0])), torch.min(torch.tensor(input_data_exp[:,0])), input_data_exp[:,1][1], input_data_exp[:,2][1]
-    step = (p_max - p_min) / (N_points - 1)
-    input_data = [[p_min + i * step, i_fixed , R_fixed ] for i in range(N_points)]
-    #     normalize sample with the model used on the training data
-    input_data = np.array(input_data)
-    input_data_norm = torch.cat([torch.from_numpy(scaler.transform(input_data[:, i:i+1])) for i, scaler in enumerate(data_prepocessed.scalers_input)], dim=1)
-    input_data_norm = input_data_norm.detach().numpy()
-    #     evaluate
-    output_data_norm =  get_average_predictions(networks, torch.tensor(input_data_norm), num_models, len(data_prepocessed.output))
-    output_data_norm_error = get_predictive_uncertainty(networks, torch.tensor(input_data_norm), num_models)
-
-    #EVALUATE WITHOUT NORMALIZATION - REVERT NORMALIZATION
-    input_data, output_data = data_prepocessed.inverse_transform(input_data_norm, output_data_norm)
-    input_data_exp, output_data_exp = data_prepocessed.inverse_transform(input_data_exp_norm, output_data_exp_norm)
-    input_data_exp, output_data_exp_pred = data_prepocessed.inverse_transform(input_data_exp_norm, output_data_exp_norm_pred_contraint)
-    #
-    input_data[:, 1] = np.round(input_data[:, 1], 2)
-    input_data_exp[:, 1] = np.round(input_data_exp[:, 1], 2)
-    # concat
-    input_data_total = input_data.numpy() if len(input_data_total) == 0 else np.concatenate((input_data_total, input_data.numpy()))
-    output_data_total = output_data.numpy() if len(output_data_total) == 0 else np.concatenate((output_data_total, output_data.numpy()))
-    input_data_exp_total = input_data_exp.numpy() if len(input_data_exp_total) == 0 else np.concatenate((input_data_exp_total, input_data_exp.numpy()))
-    output_data_exp_total = output_data_exp.numpy() if len(output_data_exp_total) == 0 else np.concatenate((output_data_exp_total, output_data_exp.numpy()))
-    output_data_exp_pred_total = output_data_exp_pred.numpy() if len(output_data_exp_pred_total) == 0 else np.concatenate((output_data_exp_pred_total, output_data_exp_pred.numpy()))
-    output_data_norm_error_total = output_data_norm_error.numpy() if len(output_data_norm_error_total) == 0 else np.concatenate((output_data_norm_error_total, output_data_norm_error.numpy()))
-
-
-  #     plots
-  unique_values = np.unique(input_data_total[:, 1])
-  for i in range(len(data_prepocessed.output)):
-    out_idx = data_prepocessed.output[i]
-    plt.clf()
-
-    #
-    y_exp_pred = output_data_exp_pred_total[:,i]
-    x_exp = input_data_exp_total[:,0]
-    y_exp = output_data_exp_total[:,i]
-    x = input_data_total[:,0]
-    y = output_data_total[:,i]
-    y_error = output_data_norm_error_total[:,i]
-    fig, ax = plt.subplots(figsize=(7, 5))
-    for value in unique_values:
-      # Select data points with the current value in input_data_total[:,1]
-      mask = (input_data_total[:,1] == value)
-      mask2 = (input_data_exp_total[:,1] == value)
-
-      # Extract data for the current value
-      x_ = x[mask]
-      y_ = y[mask]
-      y_error_ = y_error[mask]
-      x_exp_ = x_exp[mask2]
-      y_exp_ = y_exp[mask2]
-      y_exp_pred_ = y_exp_pred[mask2]
-
-
-      # Plot with the desired color based on the current value
-      if value == 0.01:
-          color = 'blue'
-          label = "10 mA"
-      elif value == 0.02:
-          color = 'red'
-          label = "20 mA"
-      elif value == 0.03:
-          color = 'green'
-          label = "30 mA"
-      elif value == 0.04:
-          color = 'purple'
-          label = "40 mA"
-      elif value == 0.05:
-          color = 'grey'
-          label = "50 mA"
-      else:
-          color = 'black'  # Set a default color for other values
-          label = "error"
-
-      rse = np.abs((y_exp_pred_ - y_exp_) / y_exp_)
-      rse[np.isinf(rse)] = 100  
-      # Maximum and Mean RSE
-      max_rse = np.max(rse).item()
-      mean_rse = np.mean(rse).item()
-
-      # Plot 1: Scatter plot comparing ne_model and calculated ne      
-      ax.errorbar(x_/133.322368, y_, xerr=y_error_, yerr=None, fmt='ro', color=color, ecolor='lightblue', capsize=4,  markersize=0.5)
-      ax.plot([], [], '-', color=color, markersize=5, label=f'{label}, model')  # Empty plot to add custom legend label
-      ax.plot(x_exp_/ 133.322368, y_exp_, 'x',  label=f'{label}, Simulation', markersize = 6, zorder=100, markeredgecolor=color, markerfacecolor='none', linewidth=1)#, zorder=10, markeredgecolor=color, markerfacecolor='none', linewidth=1) #pontos experimentais
-    
-    plt.style.use(['science','nature'])
-    # Set font to sans-serif
-    plt.rcParams['text.usetex'] = True
-    plt.rcParams['font.family'] = 'sans-serif'
-    plt.rcParams['font.sans-serif'] = ['Helvetica']
-    # Tick params
-    ax.legend(fontsize=12)
-    ax.tick_params(axis='both', which='major', labelsize=15, width=2)
-    ax.tick_params(axis='both', which='minor', labelsize=15, width=2)
-    # Ensure all ticks on the x- and y- axes are labeled
-    ax.xaxis.set_tick_params(which='both', direction='in', top=True, bottom=True)
-    ax.yaxis.set_tick_params(which='both', direction='in', left=True, right=True)
-    # Adjust the font size of the order of magnitude in the plot
-    ax.yaxis.get_offset_text().set_fontsize(16)
-
-    # Bold bounding box
-    for spine in ax.spines.values():
-      spine.set_visible(True)
-      spine.set_linewidth(2.5)
-
-    ax.set_xlabel("p (Torr)", fontsize=14, fontweight='bold')
-    ax.set_ylabel(out_idx, fontsize=14, fontweight='bold')
-    plt.tight_layout()    
-    save_path = path + out_idx + '.png'
-    plt.savefig(save_path, dpi=300)  # Save with high resolution
-    plt.show()
-
-  return output_data_norm, output_data, output_data_exp_norm, output_data_exp, input_data_norm, input_data
+    # Convert error data to a DataFrame and save to local directory
+    error_normalized_df = pd.DataFrame(error_normalized_data)
+    csv_save_path = os.path.join(output_dir, "error_normalized_data.csv")
+    error_normalized_df.to_csv(csv_save_path, index=False)
 
 # create a configuration file for the chosen architecture
 def generate_config_(config, options):
@@ -438,6 +308,7 @@ def generate_config_(config, options):
         }
     }
 
+# run the experiments for the Figure 6b
 def run_fig_6b_experiments(config, options, dataset_sizes, target_data_file_path, large_dataset_path, testcase):
 
     # create the preprocessed_data object - all the smaller datasets should use the same scalers
