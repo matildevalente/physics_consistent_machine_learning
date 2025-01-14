@@ -1,5 +1,6 @@
 import os
 import re
+import copy
 import yaml
 import glob
 import torch
@@ -19,8 +20,8 @@ from src.ltp_system.projection import get_inverse_covariance_matrix , print_matr
 from src.ltp_system.plotter.loss_curves import loss_curves
 from src.ltp_system.plotter.barplots import Figure_4d, Figure_4a, Figure_4b
 from src.ltp_system.plotter.Figure_6a import run_experiment_6a, Figure_6a_mean_all_outputs, Figure_6a_specific_outputs
-from src.ltp_system.plotter.Figure_6e import Figure_6e, run_experiment_6e
-from src.ltp_system.plotter.outputs_vs_pressure import get_data_Figure_6b, Figure_6b, run_fig_6b_experiments
+from src.ltp_system.plotter.Figure_6e import Figure_6e_mean_all_outputs, Figure_6e_specific_outputs, run_experiment_6e
+from src.ltp_system.plotter.outputs_vs_pressure import run_figures_output_vs_pressure_diff_datasets, run_figures_output_vs_pressure_diff_architectures
 
 output_labels = [r'O$_2$(X)', r'O$_2$(a$^1\Delta_g$)', r'O$_2$(b$^1\Sigma_g^+$)', r'O$_2$(Hz)', r'O$_2^+$', r'O($^3P$)', r'O($^1$D)', r'O$^+$', r'O$^-$', r'O$_3$', r'O$_3^*$', r'$T_g$', r'T$_{nw}$', r'$E/N$', r'$v_d$', r'T$_{e}$', r'$n_e$']
 
@@ -43,8 +44,9 @@ def main():
         # /// 2. PREPROCESS THE FULL DATASET ///
         data_preprocessing_info = DataPreprocessor(config)
         data_preprocessing_info.setup_dataset(large_dataset.x, large_dataset.y) 
-        testing_file, training_file = split_dataset(large_dataset_path, n_testing_points = 300)     
-        #apply_eda(config, data_preprocessing_info, large_dataset.y)
+        testing_file, training_file = split_dataset(large_dataset_path, n_testing_points = 300)  
+        print(training_file)   
+        apply_eda(config, data_preprocessing_info, large_dataset.y)
         
         # /// 3. TRAIN THE NEURAL NETWORK (NN) ///
         nn_models, nn_losses_dict, device_nn = get_trained_nn(config, data_preprocessing_info, training_file, dataset_size = 1000)
@@ -68,81 +70,68 @@ def main():
             Figure_4b(config['plotting'], laws_dict, error_type)
 
         # /// 7. NN and NN_Proj errors as a func of the model's parameters + NN training time /// 
-        options = {
-            'n_bootstrap_models': 30,
+        options_fig_6a = {
+            'n_bootstrap_models': 30, # 1
             'activation_func': 'leaky_relu', 
             'APPLY_EARLY_STOPPING': True,
             'num_epochs': 100000,            # Along w/ the early stopping, we use a high max epochs to ensure convergence 
             'max_hidden_layers': 1, 
             'min_hidden_layers':1,
-            'max_neurons_per_layer': 500, 
+            'max_neurons_per_layer': 500, # 5000
             'min_neurons_per_layer': 1, 
-            'n_steps': 35,
+            'n_steps': 35, #35                 # Defines the number of different architectures to train
             'w_matrix': torch.eye(17), 
             'PRINT_LOSS_VALUES': True,
-            'RETRAIN_MODEL': False,
+            'RETRAIN_MODEL': True,
             'extract_results_specific_outputs': ['O2(X)', 'O2(+,X)', 'ne'],
             'patience': 2,
             'alpha': 0.0001,
             'output_dir': 'src/ltp_system/figures/Figures_6a/'         # dir for tables and plots
         }
         # select 'data_size' random rows from the training file to train the different nn architectures
-        temp_file = select_random_rows(training_file, n = 600)
+        temp_file = select_random_rows(training_file, dataset_size = 600, seed = 42)
         # run the experiment and obtain results as pandas dataframes
-        df_results_6a_all, df_results_6a_specific = run_experiment_6a(config, temp_file, options)
+        df_results_6a_all, df_results_6a_specific = run_experiment_6a(config, temp_file, options_fig_6a)
         # plot the results
-        Figure_6a_mean_all_outputs(options, df_results_6a_all)
-        Figure_6a_specific_outputs(options, df_results_6a_all, df_results_6a_specific, output_labels)
+        Figure_6a_mean_all_outputs(options_fig_6a, df_results_6a_all)
+        Figure_6a_specific_outputs(options_fig_6a, df_results_6a_all, df_results_6a_specific, output_labels)
+        
 
-        """# /// 8. NN and NN_Proj errors as a func of the dataset size + approximate loki computation time /// 
-        options = {
-            'n_samples': 30, 
+        # /// 8. NN and NN_Proj errors as a func of the dataset size + approximate loki computation time /// 
+        options_fig_6e = {
+            'n_samples': 30,          # N. of random samples to extract for each dataset size
+            'n_bootstrap_models': 10,  # N. of bootstrap models to train for each dataset size
+            'hidden_sizes': [50,50],  
+            'activation_fns': ['leaky_relu', 'leaky_relu'], 
             'APPLY_EARLY_STOPPING': True,
-            'num_epochs':  100000000,
-            'n_bootstrap_models': 5, 
-            'hidden_sizes': [451, 315, 498, 262],
-            'activation_fns': ['leaky_relu', 'leaky_relu', 'leaky_relu', 'leaky_relu'], 
-            'w_matrix': torch.eye(17), 
-            'PRINT_LOSS_VALUES': False,
-            'RETRAIN_MODEL': False, 
+            'num_epochs':  10000000,
+            'extract_results_specific_outputs': ['O2(X)', 'O2(+,X)', 'ne'],
+            'w_matrix': torch.eye(17),   # Projection matrix is the identity matrix
+            'PRINT_LOSS_VALUES': True,
+            'RETRAIN_MODEL': True, 
+            'patience': 2,
+            'alpha': 0.0001,
+            'output_dir': 'src/ltp_system/figures/Figures_6d/',
         }
         # Get the list of files to analyze
-        dataset_sizes = [175, 200, 250, 300, 350, 400, 500, 600, 700, 800, 900, 1000]
-        #df_results_6e = run_experiment_6e(config, training_file, dataset_sizes, options)
-        #print(df_results_6e)
-        #Figure_6e(config['plotting'], df_results_6e)
+        dataset_sizes = [400, 500, 600, 700, 800, 900, 1000]
+        df_results_6e_all, df_results_6e_specific, data_preprocessing_info = run_experiment_6e(config, training_file, dataset_sizes, options_fig_6e)
+        Figure_6e_mean_all_outputs(options_fig_6e, df_results_6e_all)
+        Figure_6e_specific_outputs(options_fig_6e, df_results_6e_all, df_results_6e_specific, output_labels)
         
-        # /// 9. CONST CURRENT PLOTS ///
-        dataset_sizes = [1000]
-        options = {
-            'num_epochs':  100,
-            'APPLY_EARLY_STOPPING': False,
-            'n_bootstrap_models': 30, 
-            'hidden_sizes': [451, 315, 498, 262],
-            'activation_fns': ['leaky_relu', 'leaky_relu', 'leaky_relu', 'leaky_relu'],
-            'w_matrix': torch.eye(17), 
-            'RETRAIN_MODEL': True, 
-            'PRINT_LOSS_VALUES': False
-        }
-        training_file = 'data/ltp_system/data_1000_points.txt'
+        
+        ############################ PLOTS OF OUTPUTS AS A FUNCTION OF PRESSURE FOR DIFFERENT POINTS IN FIG. 6A AND FIG. 6D
         target_data_file_path = 'data/ltp_system/const_current/data_50_points_30mA.txt'
-        #run_fig_6b_experiments(config, options, dataset_sizes, target_data_file_path, training_file, testcase = "a")
-        
-        options['num_epochs'] = 50
-        options['n_bootstrap_models'] = 1
-        #run_fig_6b_experiments(config, options, dataset_sizes, target_data_file_path, training_file, testcase = "b")
 
-        options['num_epochs'] = 5
-        options['n_bootstrap_models'] = 1
-        #run_fig_6b_experiments(config, options, dataset_sizes, target_data_file_path, training_file, testcase = "c")
+        # Get the output predictions as a function of pressure for different architectures, ie, points in the Figure 6(a)
+        options_fig_6a['RETRAIN_MODEL'] = False
+        run_figures_output_vs_pressure_diff_architectures(config, options_fig_6a, target_data_file_path)
 
-        dataset_sizes = [300]
-        options['num_epochs'] = 5
-        options['n_bootstrap_models'] = 1
-        training_file = 'data/ltp_system/data_1000_points.txt'
-        #run_fig_6b_experiments(config, options, dataset_sizes, target_data_file_path, training_file, testcase = "d")"""
-
-        
+        # Get the output predictions as a function of pressure for different training dataset sizes, ie, points in the Figure 6(d)
+        options_fig_6e['RETRAIN_MODEL'] = False
+        run_figures_output_vs_pressure_diff_datasets(config, options_fig_6e, dataset_sizes, target_data_file_path)
+        ################################################################################################################
+    
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
         raise
@@ -155,7 +144,7 @@ def get_trained_nn(config, data_preprocessing_info, training_file, dataset_size)
     os.makedirs(checkpoint_dir, exist_ok=True)
     
     # read from the train_path file and randomly select 'dataset_size' rows
-    temp_file = select_random_rows(training_file, dataset_size)
+    temp_file = select_random_rows(training_file, dataset_size, seed=42)
 
     # read the dataset and preprocess data
     _, temp_dataset = load_dataset(config, temp_file)
@@ -194,7 +183,7 @@ def get_trained_pinn(config, data_preprocessing_info, training_file, dataset_siz
     os.makedirs(checkpoint_dir, exist_ok=True)
     
     # read from the train_path file and randomly select 'dataset_size' rows
-    temp_file = select_random_rows(training_file, dataset_size)
+    temp_file = select_random_rows(training_file, dataset_size, seed=42)
 
     # read the dataset and preprocess data
     _, temp_dataset = load_dataset(config, temp_file)

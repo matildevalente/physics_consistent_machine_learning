@@ -96,30 +96,37 @@ def load_dataset(config, dataset_dir):
         raise FileNotFoundError("Dataset file not found. Please generate the dataset or provide the correct file path.")
 
 # 
-def select_random_rows(input_file, n, temp_file = 'data/ltp_system/temp.txt'):
+def select_random_rows(input_file, dataset_size, seed, sampled_dataset = 'data/ltp_system/temp.txt'):
+
     try:
+        # Set the random seed to ensure different samples for different seeds
+        random.seed(seed)
+        
         # Read all lines from the input file
         with open(input_file, 'r') as f:
             lines = f.readlines()
         
         # Ensure N is not larger than the number of lines
-        n = min(n, len(lines))
+        dataset_size = min(dataset_size, len(lines))
         
-        # Randomly select N lines
-        selected_lines = random.sample(lines, n)
+        # Randomly select N lines using the seeded random state
+        selected_lines = random.sample(lines, dataset_size)
         
         # Create the directory if it doesn't exist
-        os.makedirs(os.path.dirname(temp_file), exist_ok=True)
+        os.makedirs(os.path.dirname(sampled_dataset), exist_ok=True)
         
         # Write the selected lines to the temp file
-        with open(temp_file, 'w') as f:
+        with open(sampled_dataset, 'w') as f:
             f.writelines(selected_lines)
         
-        return temp_file
+        # Reset the random seed to avoid affecting other code
+        random.seed()
+        
+        return sampled_dataset
     except FileNotFoundError:
         return False, f"Error: The input file '{input_file}' was not found."
     except PermissionError:
-        return False, f"Error: Permission denied when trying to create or write to '{temp_file}'."
+        return False, f"Error: Permission denied when trying to create or write to '{sampled_dataset}'."
     except Exception as e:
         return False, f"An unexpected error occurred: {str(e)}"
 
