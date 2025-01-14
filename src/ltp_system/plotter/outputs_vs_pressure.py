@@ -1,5 +1,9 @@
 import os
+import csv
+
 import torch
+import pickle
+
 import numpy as np
 import matplotlib as mpl
 import torch.nn as nn
@@ -126,7 +130,7 @@ def evaluate_projection(normalized_proj_predictions, normalized_targets):
     return mape, rmse
 
 # get the data for the Figure 6b
-def get_data_Figure_6b(config, networks, file_path, w_matrix, data_preprocessing_info):
+def get_data_Figure_6b(networks, file_path, w_matrix, data_preprocessing_info):
   
     # /// 1. EXTRACT DATASET & PREPROCESS THE DATASET///
     normalized_inputs, normalized_targets = load_data(file_path, data_preprocessing_info)
@@ -154,7 +158,6 @@ def get_data_Figure_6b(config, networks, file_path, w_matrix, data_preprocessing
     #
     denormalized_inputs_contiuous_p, denormalized_model_predictions_contiuous_p = data_preprocessing_info.inverse_transform(normalized_inputs_contiuous_p, normalized_model_predictions_contiuous_p)
     denormalized_inputs_contiuous_p, denormalized_proj_predictions_contiuous_p = data_preprocessing_info.inverse_transform(normalized_inputs_contiuous_p, normalized_proj_predictions_contiuous_p)
-
 
     #
     mape_nn, mape_uncertainty_nn, normalized_model_predictions_nn, rmse_nn = evaluate_model(normalized_targets, normalized_model_predictions_simul, normalized_model_pred_uncertainty_simul)
@@ -205,28 +208,32 @@ def append_error_values(error_data, output, discrete_targets, discrete_nn_predic
     })
 
 # physical plot - outputs vs. pressure at a given discharge current (1 plot)
-def Figure_6b(config, denormalized_predictions_dict, errors_dict, test_case):
-
+#def Figure_6b(config, denormalized_predictions_dict, test_case):
+def Figure_6b(config, df_discrete, df_continuum, test_case):
+    # extract output features
     outputs = config['dataset_generation']['output_features']
+    n_inputs = 3
+    n_outputs = 17
 
     # inputs and targets based on the given file (simulation points)
-    discrete_inputs=  denormalized_predictions_dict['discrete_inputs']
-    discrete_targets=  denormalized_predictions_dict['discrete_targets']
-    discrete_nn_predictions = denormalized_predictions_dict['discrete_nn_predictions']
-    discrete_nn_proj_predictions = denormalized_predictions_dict['discrete_nn_proj_predictions']
+    discrete_inputs  =  df_discrete[[f'input_{i+1}' for i in range(n_inputs)]].to_numpy()
+    discrete_targets =  df_discrete[[f'target_{i+1}' for i in range(n_outputs)]].to_numpy()
+    discrete_nn_predictions = df_discrete[[f'nn_pred_{i+1}' for i in range(n_outputs)]].to_numpy()
+    discrete_nn_proj_predictions = df_discrete[[f'nn_proj_pred_{i+1}' for i in range(n_outputs)]].to_numpy()
 
     # inputs and targets continuous distribution
-    const_p_inputs   =  denormalized_predictions_dict['const_p_inputs']
-    nn_model_outputs =  denormalized_predictions_dict['nn_model_outputs']
-    nn_proj_outputs  =  denormalized_predictions_dict['nn_proj_outputs']
-    nn_model_pred_uncertainties = denormalized_predictions_dict['nn_model_pred_uncertainties']
+    const_p_inputs   =  df_continuum[[f'input_{i+1}' for i in range(n_inputs)]].to_numpy()
+    nn_model_outputs =  df_continuum[[f'nn_pred_{i+1}' for i in range(n_outputs)]].to_numpy()
+    nn_model_pred_uncertainties  =  df_continuum[[f'nn_pred_uncertainty_{i+1}' for i in range(n_outputs)]].to_numpy()
+    nn_proj_outputs = df_continuum[[f'nn_proj_pred_{i+1}' for i in range(n_outputs)]].to_numpy()
 
     error_normalized_data = []
     error_denormalized_data = []
     for i, output in enumerate(outputs):
-
-        append_error_values(error_denormalized_data, output, discrete_targets[:,i], discrete_nn_predictions[:,i], discrete_nn_proj_predictions[:,i])
+        
+        # compare the loki target points to the predictions by the NN
         append_error_values(error_normalized_data, output, discrete_targets[:,i], discrete_nn_predictions[:,i], discrete_nn_proj_predictions[:,i])
+        append_error_values(error_denormalized_data, output, discrete_targets[:,i], discrete_nn_predictions[:,i], discrete_nn_proj_predictions[:,i])
 
         # Resetting the current figure
         plt.clf()  # Clear the current figure
@@ -297,7 +304,9 @@ def generate_config_(config, options):
             'batch_size'         : config['nn_model']['batch_size'],
             'training_threshold' : config['nn_model']['training_threshold'],
             'n_bootstrap_models' : options['n_bootstrap_models'],
-            'lambda_physics'     : config['nn_model']['lambda_physics'],            
+            'lambda_physics'     : config['nn_model']['lambda_physics'],   
+            'patience'           : options['patience'],
+            'alpha'              : options['alpha']
         },
         'plotting': {
             'output_dir': config['plotting']['output_dir'],
@@ -308,8 +317,8 @@ def generate_config_(config, options):
         }
     }
 
-# run the experiments for the Figure 6b
-def run_fig_6b_experiments(config, options, dataset_sizes, target_data_file_path, large_dataset_path, testcase):
+"""# run the experiments for the Figure 6b
+def run_fig_6b_experiments(config, options, dataset_sizes, target_data_file_path, large_dataset_path, testcase, seed_):
 
     # create the preprocessed_data object - all the smaller datasets should use the same scalers
     _, large_dataset = load_dataset(config, large_dataset_path)
@@ -321,7 +330,7 @@ def run_fig_6b_experiments(config, options, dataset_sizes, target_data_file_path
         config_experiment = generate_config_(config, options)
 
         # 2. create a dataset with the given number of rows
-        temp_file = select_random_rows(large_dataset_path, dataset_size)
+        temp_file = select_random_rows(large_dataset_path, dataset_size, seed=seed_)
 
         # 3. read the dataset and preprocess data
         _, temp_dataset = load_dataset(config_experiment, temp_file)
@@ -336,5 +345,221 @@ def run_fig_6b_experiments(config, options, dataset_sizes, target_data_file_path
         # 6. get the results 
         preds_dict, errors_dict = get_data_Figure_6b(config_experiment, nn_models, target_data_file_path, torch.eye(17), data_preprocessing_info)
 
-        # 7. get the plots and save them to a local directory
-        Figure_6b(config_experiment, preds_dict, errors_dict, testcase)
+        return preds_dict, errors_dict, config_experiment
+
+"""
+
+# Figures_6a; output/ltp_system/checkpoints/different_datasets/dataset_{}_sample_{}
+def run_figures_output_vs_pressure_diff_datasets(config, options, dataset_sizes_list, target_data_file_path):
+
+    """
+    For each dataset size, different models were trained with different samples. 
+    This function performs the predictions of constant I and R for varying P using this pre-trained models with different dataset sizes. 
+    The final (R,I)-constant curve prediction is a mean of the predictions of the different models trained with different samples of the same size.
+    Different samples are used to reduce the bias of the datapoints selection.
+    """
+
+    # extract the number of samples per dataset size
+    n_samples = options['n_samples']
+    n_inputs = 3  # number of input features
+    n_outputs = 17  # number of target features
+    
+    # loop over the different dataset lenghts
+    for idx_dataset, dataset_size in enumerate(range(len(dataset_sizes_list))):
+
+        # Initialize empty DataFrame with the column names
+        columns_discrete = [
+            *[f'input_{i+1}' for i in range(n_inputs)],
+            *[f'target_{i+1}' for i in range(n_outputs)],
+            *[f'nn_pred_{i+1}' for i in range(n_outputs)],
+            *[f'nn_proj_pred_{i+1}' for i in range(n_outputs)]
+        ]
+        columns_continuum = [
+            *[f'input_{i+1}' for i in range(n_inputs)],
+            *[f'nn_pred_{i+1}' for i in range(n_outputs)],
+            *[f'nn_pred_uncertainty_{i+1}' for i in range(n_outputs)],
+            *[f'nn_proj_pred_{i+1}' for i in range(n_outputs)]
+        ]
+        df_discrete  = pd.DataFrame(columns=columns_discrete)
+        df_continuum = pd.DataFrame(columns=columns_continuum)
+
+        # loop over the different samples
+        for idx_sample in range(n_samples):
+
+            # directory where the trained models are stored
+            checkpoint_dir = f"output/ltp_system/checkpoints/different_datasets/dataset_{idx_dataset}_sample_{idx_sample}"
+            
+            # load the already trained model from the checkpoint dir
+            try:
+                options['learning_rate'] = config['nn_model']['learning_rate']
+                options['batch_size'] = config['nn_model']['batch_size']
+                options['lambda_physics'] = config['nn_model']['lambda_physics']
+                nn_models, _, hidden_sizes, activation_fns, training_time = load_checkpoints(options, NeuralNetwork, checkpoint_dir)
+                
+                # Load the preprocessing_info object with the information about the scalers
+                file_path = "output/ltp_system/checkpoints/different_datasets/data_preprocessing_info.pkl"
+                with open(file_path, 'rb') as file:
+                    data_preprocessing_info = pickle.load(file)                
+                    
+            except FileNotFoundError:
+                raise ValueError("Checkpoint not found. Set RETRAIN_MODEL to True or provide a valid checkpoint.")
+            
+            # Get the constant-current predictions for the specific model get_data_Figure_6b(networks, file_path, w_matrix, data_preprocessing_info)
+            predictions_dict_sample_idx, errors_dict_sample_idx = get_data_Figure_6b(nn_models, target_data_file_path, torch.eye(17), data_preprocessing_info)
+            
+            # inputs and targets based on the given file (simulation points)
+            discrete_inputs  =  np.array(predictions_dict_sample_idx['discrete_inputs'])
+            discrete_targets =  np.array(predictions_dict_sample_idx['discrete_targets'])
+            discrete_nn_predictions = np.array(predictions_dict_sample_idx['discrete_nn_predictions'])
+            discrete_nn_proj_predictions = np.array(predictions_dict_sample_idx['discrete_nn_proj_predictions'])
+
+            # inputs and targets continuous distribution
+            p_inputs   =  np.array(predictions_dict_sample_idx['const_p_inputs'])
+            nn_pred =  np.array(predictions_dict_sample_idx['nn_model_outputs'])
+            nn_proj_pred  =  np.array(predictions_dict_sample_idx['nn_proj_outputs'])
+            nn_pred_uncertainty = np.array(predictions_dict_sample_idx['nn_model_pred_uncertainties'])
+
+            # append the discrete results for this sample
+            n_discrete_points = len(discrete_inputs[:,0])
+            new_data = pd.DataFrame(
+                np.hstack([
+                    discrete_inputs,
+                    discrete_targets,
+                    discrete_nn_predictions,
+                    discrete_nn_proj_predictions
+                ]),
+                columns=columns_discrete,
+                index=range(n_discrete_points) 
+            )
+            df_discrete = pd.concat([df_discrete, new_data])
+            
+            # append the continuum results for this sample
+            n_continuum_points = len(p_inputs[:,0])
+            new_data = pd.DataFrame(
+                np.hstack([
+                    p_inputs,
+                    nn_pred,
+                    nn_pred_uncertainty,
+                    nn_proj_pred
+                ]),
+                columns=columns_continuum,
+                index=range(n_continuum_points) 
+            )
+            df_continuum = pd.concat([df_continuum, new_data])
+            
+        # Group by the cycling index (0-n_discrete_points) and calculate mean
+        df_aggregated_discrete_predictions_dataset_idx = df_discrete.groupby(df_discrete.index % n_discrete_points).mean()
+
+        # Group by the cycling index (0-49) and calculate mean
+        df_aggregated_continuum_predictions_dataset_idx = df_continuum.groupby(df_continuum.index % n_continuum_points).mean()
+
+        # make the plot
+        Figure_6b(config, df_aggregated_discrete_predictions_dataset_idx, df_aggregated_continuum_predictions_dataset_idx, test_case = f"different_datasets/dataset_{dataset_size}")
+
+
+# 
+def run_figures_output_vs_pressure_diff_architectures(config, options, target_data_file_path):
+
+    """
+    For each dataset size, different models were trained with different samples. 
+    This function performs the predictions of constant I and R for varying P using this pre-trained models with different dataset sizes. 
+    The final (R,I)-constant curve prediction is a mean of the predictions of the different models trained with different samples of the same size.
+    Different samples are used to reduce the bias of the datapoints selection.
+    """
+
+    # extract the number of samples per dataset size
+    n_inputs = 3  # number of input features
+    n_outputs = 17  # number of target features
+
+    # load the nn architectures from a file
+    architectures_file_path = "src/ltp_system/figures/Figures_6a/table_results/architectures.csv"
+    random_architectures_list = []
+    with open(architectures_file_path, mode='r') as file:
+        reader = csv.reader(file)
+        random_architectures_list = [row for row in reader]
+    random_architectures_list = [[int(num) for num in sublist] for sublist in random_architectures_list]
+
+    # loop over the different dataset lenghts
+    for idx_architecture, architecture in enumerate(random_architectures_list):
+
+        # Initialize empty DataFrame with the column names
+        columns_discrete = [
+            *[f'input_{i+1}' for i in range(n_inputs)],
+            *[f'target_{i+1}' for i in range(n_outputs)],
+            *[f'nn_pred_{i+1}' for i in range(n_outputs)],
+            *[f'nn_proj_pred_{i+1}' for i in range(n_outputs)]
+        ]
+        columns_continuum = [
+            *[f'input_{i+1}' for i in range(n_inputs)],
+            *[f'nn_pred_{i+1}' for i in range(n_outputs)],
+            *[f'nn_pred_uncertainty_{i+1}' for i in range(n_outputs)],
+            *[f'nn_proj_pred_{i+1}' for i in range(n_outputs)]
+        ]
+        df_discrete  = pd.DataFrame(columns=columns_discrete)
+        df_continuum = pd.DataFrame(columns=columns_continuum)
+
+        # directory where the trained models are stored
+        checkpoint_dir = f"output/ltp_system/checkpoints/different_architectures/architecture_{idx_architecture}"
+        
+        # load the already trained model from the checkpoint dir
+        try:
+            options['hidden_sizes'] = architecture
+            options['activation_fns'] = options['activation_func']
+            options['learning_rate'] = config['nn_model']['learning_rate']
+            options['batch_size'] = config['nn_model']['batch_size']
+            options['lambda_physics'] = config['nn_model']['lambda_physics']
+            nn_models, _, _, _, _ = load_checkpoints(options, NeuralNetwork, checkpoint_dir)
+            
+            # Load the preprocessing_info object with the information about the scalers
+            file_path = "output/ltp_system/checkpoints/different_architectures/data_preprocessing_info.pkl"
+            with open(file_path, 'rb') as file:
+                data_preprocessing_info = pickle.load(file)                
+                
+        except FileNotFoundError:
+            raise ValueError("Checkpoint not found. Set RETRAIN_MODEL to True or provide a valid checkpoint.")
+        
+        # Get the constant-current predictions for the specific model get_data_Figure_6b(networks, file_path, w_matrix, data_preprocessing_info)
+        predictions_dict_sample_idx, errors_dict_sample_idx = get_data_Figure_6b(nn_models, target_data_file_path, torch.eye(17), data_preprocessing_info)
+        
+        # inputs and targets based on the given file (simulation points)
+        discrete_inputs  =  np.array(predictions_dict_sample_idx['discrete_inputs'])
+        discrete_targets =  np.array(predictions_dict_sample_idx['discrete_targets'])
+        discrete_nn_predictions = np.array(predictions_dict_sample_idx['discrete_nn_predictions'])
+        discrete_nn_proj_predictions = np.array(predictions_dict_sample_idx['discrete_nn_proj_predictions'])
+
+        # inputs and targets continuous distribution
+        p_inputs   =  np.array(predictions_dict_sample_idx['const_p_inputs'])
+        nn_pred =  np.array(predictions_dict_sample_idx['nn_model_outputs'])
+        nn_proj_pred  =  np.array(predictions_dict_sample_idx['nn_proj_outputs'])
+        nn_pred_uncertainty = np.array(predictions_dict_sample_idx['nn_model_pred_uncertainties'])
+
+        # append the discrete results for this sample
+        n_discrete_points = len(discrete_inputs[:,0])
+        new_data = pd.DataFrame(
+            np.hstack([
+                discrete_inputs,
+                discrete_targets,
+                discrete_nn_predictions,
+                discrete_nn_proj_predictions
+            ]),
+            columns=columns_discrete,
+            index=range(n_discrete_points) 
+        )
+        df_discrete = pd.concat([df_discrete, new_data])
+        
+        # append the continuum results for this sample
+        n_continuum_points = len(p_inputs[:,0])
+        new_data = pd.DataFrame(
+            np.hstack([
+                p_inputs,
+                nn_pred,
+                nn_pred_uncertainty,
+                nn_proj_pred
+            ]),
+            columns=columns_continuum,
+            index=range(n_continuum_points) 
+        )
+        df_continuum = pd.concat([df_continuum, new_data])
+            
+        # make the plot
+        Figure_6b(config, df_discrete, df_continuum, test_case = f"different_architectures/architecture_{idx_architecture}")

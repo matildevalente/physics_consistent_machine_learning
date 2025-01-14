@@ -1,5 +1,6 @@
 import os
 import csv
+import pickle
 import torch
 import random
 import numpy as np
@@ -214,8 +215,6 @@ def evaluate_projection(index_output_features,normalized_model_predictions, norm
 
             rows_list.append([index_output_features, mape, rmse])
 
-    print("Projection rows_list = ", rows_list)
-
     return mape_all_outputs, rmse_all_outputs, mape_uncertainty, rmse_uncertainty, rows_list
 
 # compute the number of weights and biases in the nn
@@ -285,6 +284,12 @@ def run_experiment_6a(config_original, filename, options):
     preprocessed_data.setup_dataset(full_dataset.x, full_dataset.y)  
     # load the data
     normalized_inputs, normalized_targets = load_data( filename, preprocessed_data)
+    # Save the data_preprocessing_info object
+    directory = "output/ltp_system/checkpoints/different_architectures"
+    os.makedirs(directory, exist_ok=True)
+    file_path = os.path.join(directory, "data_preprocessing_info.pkl")
+    with open(file_path, 'wb') as file:
+        pickle.dump(preprocessed_data, file)
     
     # define the file paths for the results
     table_dir = os.path.join(options['output_dir'], 'table_results')
