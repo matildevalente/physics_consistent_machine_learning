@@ -9,11 +9,12 @@ from tqdm import tqdm
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from typing import Dict, Any, Tuple
+
 from sklearn.metrics import mean_absolute_percentage_error, mean_squared_error
 
 from src.ltp_system.utils import savefig
-from src.ltp_system.utils import set_seed, load_dataset, load_config
-from src.ltp_system.data_prep import DataPreprocessor, LoadDataset
+from src.ltp_system.utils import set_seed, load_dataset, load_config, split_dataset, select_random_rows
+from src.ltp_system.data_prep import DataPreprocessor, LoadDataset, setup_dataset_with_preproprocessing_info
 from src.ltp_system.pinn_nn import get_trained_bootstraped_models, load_checkpoints, NeuralNetwork, get_average_predictions, get_predictive_uncertainty
 from src.ltp_system.projection import get_average_predictions_projected,constraint_p_i_ne
 
@@ -72,10 +73,11 @@ def generate_config_(config, hidden_sizes, activation_fns, options):
             'n_bootstrap_models' : options['n_bootstrap_models'],
             'lambda_physics'     : config['nn_model']['lambda_physics'], 
             'patience'           : options['patience'],
-            'alpha'              : options['alpha']
+            'alpha'              : options['alpha'],
+            'checkpoints_dir'    : options['checkpoints_dir']
         },
         'plotting': {
-            'output_dir': config['plotting']['output_dir'],
+            'output_dir': options['results_dir'],
             'PLOT_LOSS_CURVES': False,
             'PRINT_LOSS_VALUES': options['PRINT_LOSS_VALUES'],
             'palette': config['plotting']['palette'],
@@ -87,7 +89,7 @@ def generate_config_(config, hidden_sizes, activation_fns, options):
 def get_trained_nn(config, preprocessed_data, idx_arc):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    checkpoint_dir = os.path.join('output', 'ltp_system', 'checkpoints', 'different_architectures', f'architecture_{idx_arc}')
+    checkpoint_dir = os.path.join(config['nn_model']['checkpoints_dir'], f'architecture_{idx_arc}')  #os.path.join('output', 'ltp_system', 'checkpoints', 'different_architectures', f'architecture_{idx_arc}')
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     train_data = preprocessed_data.train_data
@@ -230,8 +232,8 @@ def compute_parameters(layer_config):
 
 # plot the histogram of the number of parameters for the nn architectures
 def plot_histogram_with_params(architectures, options):
-    min_parameters = compute_parameters([options['min_neurons_per_layer']] * options['min_hidden_layers'])
-    max_parameters = compute_parameters([options['max_neurons_per_layer']] * options['max_hidden_layers'])
+    min_parameters = compute_parameters([options['min_neurons_per_layer']] * options['n_hidden_layers'])
+    max_parameters = compute_parameters([options['max_neurons_per_layer']] * options['n_hidden_layers'])
     
     # Calculate parameters for each architecture
     params_list = [compute_parameters(arch) for arch in architectures]
@@ -245,61 +247,118 @@ def plot_histogram_with_params(architectures, options):
     plt.legend()
 
     # Save figures
-    output_dir = options['output_dir'] + "table_results"
+    output_dir = options['results_dir'] + "table_results"
     os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, f"architectures_histogram.pdf")
     savefig(save_path, pad_inches=0.2)
 
-# generate random nn architectures
+# 
 def get_random_architectures(options):
-
     print("\nGenerating random NN architectures for Figure 6a.")
     min_neurons_per_layer = options['min_neurons_per_layer']
     max_neurons_per_layer = options['max_neurons_per_layer']
     n_architectures = options['n_steps']
-    max_hidden_layers = options['max_hidden_layers']
-    min_hidden_layers = options['min_hidden_layers']
+    n_hidden_layers = options['n_hidden_layers']
 
+    # Generate architectures based on scale preference
+    if options.get('log_random_architectures', True):
+        # Generate logarithmically spaced numbers
+        architectures = np.logspace(
+            np.log10(min_neurons_per_layer),
+            np.log10(max_neurons_per_layer),
+            n_architectures,
+            dtype=int
+        )
+    else:
+        # Generate linearly spaced numbers
+        architectures = np.linspace(
+            min_neurons_per_layer,
+            max_neurons_per_layer,
+            n_architectures,
+            dtype=int
+        )
 
-    # Generate uniformly distributed number of hidden layers (as integers)
-    architectures = np.linspace(min_neurons_per_layer, max_neurons_per_layer, n_architectures, dtype=int)
+    # Add specific architectures and sort
     architectures = np.concatenate([architectures, [5, 10, 18]])
-    architectures = np.sort(architectures)
+    architectures = np.unique(np.sort(architectures))  # Added unique to remove potential duplicates
 
-    # Convert each element of hidden_layers_list to a sublist of repeated neurons
+    # Convert each element to a sublist of repeated neurons
     architectures_list = []
     for architecture in architectures:
-        sublist = [architecture] * min_hidden_layers
+        sublist = [architecture] * n_hidden_layers
         architectures_list.append(sublist)
 
     return architectures_list
 
+# split the dataset into training and testing
+def split_dataset_(config_, large_dataset_path, n_testing_points):
+    """
+    METHODOLOGY: 
+    (1) Begin with a large dataset (N points). 
+    (2) Select the size of the testing dataset size (n_testing_points = 300). 
+    (3) Create testing  dataset: Randomly select "n_testing_points" points from the large_dataset. All the datasets should be tested on this dataset.
+    (4) Create training dataset: Randomly select N_train points from the large dataset. This large dataset should not include the testing points to avoid data leakage.
+    (5) Preprocess the data.
+    """
+    # create the preprocessed_data object - all the smaller datasets should use the same scalers
+    _, large_dataset = load_dataset(config_, large_dataset_path)
+    data_preprocessing_info = DataPreprocessor(config_)
+    data_preprocessing_info.setup_dataset(large_dataset.x, large_dataset.y)  
+
+    # separate the test set of the large_dataset_path from the rest of the dataset which will be used to train the various models
+    testing_file, training_file = split_dataset(large_dataset_path, n_testing_points)
+    test_inputs_norm, test_targets_norm = load_data(testing_file, data_preprocessing_info)
+
+    return data_preprocessing_info, training_file, test_inputs_norm, test_targets_norm
+
+
+
 # main function to run the experiment
-def run_experiment_6a(config_original, filename, options):
-    # /// 1. EXTRACT DATASET & PREPROCESS THE DATASET///
-    # load the dataset  
-    _, full_dataset = load_dataset(config_original, dataset_dir = filename)
-    # preprocess the dataset
-    preprocessed_data = DataPreprocessor(config_original)
-    preprocessed_data.setup_dataset(full_dataset.x, full_dataset.y)  
-    # load the data
-    normalized_inputs, normalized_targets = load_data( filename, preprocessed_data)
-    # Save the data_preprocessing_info object
-    directory = "output/ltp_system/checkpoints/different_architectures"
-    os.makedirs(directory, exist_ok=True)
-    file_path = os.path.join(directory, "data_preprocessing_info.pkl")
-    with open(file_path, 'wb') as file:
-        pickle.dump(preprocessed_data, file)
-    
+# (config, large_dataset_path, options_fig_6a, dataset_size = 1000, seed = 42)
+def run_experiment_6a(config_original, large_dataset_path, options):
+    ###################################### 1. SETUP AND DEFINITIONS ###################################
     # define the file paths for the results
-    table_dir = os.path.join(options['output_dir'], 'table_results')
+    table_dir = os.path.join(options['results_dir'], 'table_results')
     # create the directory if it doesn't exist
     os.makedirs(table_dir, exist_ok=True)
     architectures_file_path = os.path.join(table_dir, 'architectures.csv')
     all_results_file_path = os.path.join(table_dir, 'all_outputs_mean_results.csv')
     specific_outputs_file_path = os.path.join(table_dir, 'specific_outputs_results.csv')
+    ###################################################################################################
 
-    # /// 2. GENERATE RANDOM ARCHITECTURES OR LOAD THEM FROM FILE ACCORDING TO THE RETRAIN_MODEL OPTION ///
+    ###################################### 2. DEAL WITH DATA SELECTION ################################
+    """# load the dataset  
+    _, full_dataset = load_dataset(config_original, dataset_dir = large_dataset_path)
+    # preprocess the dataset
+    data_preprocessing_info = DataPreprocessor(config_original)
+    data_preprocessing_info.setup_dataset(full_dataset.x, full_dataset.y)  
+    # load the data
+    normalized_inputs, normalized_targets = load_data( large_dataset_path, data_preprocessing_info)
+    # Save the data_preprocessing_info object
+    directory = options['checkpoints_dir']
+    os.makedirs(directory, exist_ok=True)
+    file_path = os.path.join(directory, "data_preprocessing_info.pkl")
+    with open(file_path, 'wb') as file:
+        pickle.dump(data_preprocessing_info, file)"""
+    # 
+    data_preprocessing_info, training_file, test_inputs_norm, test_targets_norm = split_dataset_(config_, large_dataset_path, options['dataset_size'])
+    # 1. read from the train_path file and randomly select 'dataset_size' rows - save the dataset to a local dir sampled_dataset_dir
+    sampled_dataset_dir = select_random_rows(training_file, options['dataset_size'], seed = 42)
+    # 2. read the dataset from the sampled_dataset_dir and preprocess data
+    _, sampled_dataset = load_dataset(config_, sampled_dataset_dir)
+    # 3. preprocess the data: the training sets, ie, subsets of the bigger dataset, are preprocessed using the scalers fitted on the large dataset to avoid data leakage.
+    train_data_norm, test_data_norm, val_data_norm  = setup_dataset_with_preproprocessing_info(sampled_dataset.x, sampled_dataset.y, data_preprocessing_info)  
+    normalized_inputs = train_data_norm.x
+    normalized_targets = train_data_norm.y
+    # Save the data_preprocessing_info object
+    directory = "output/ltp_system/checkpoints/different_architectures"
+    os.makedirs(directory, exist_ok=True)
+    file_path = os.path.join(directory, "data_preprocessing_info.pkl")
+    with open(file_path, 'wb') as file:
+        pickle.dump(data_preprocessing_info, file)
+    ###################################################################################################
+
+    ###################################### 3. GET RANDOM ARCHITECTURES  ###############################
     if options['RETRAIN_MODEL']:
         # generate random nn architectures
         random_architectures_list = get_random_architectures(options)
@@ -317,8 +376,9 @@ def run_experiment_6a(config_original, filename, options):
 
     print("random_architectures_list = ", random_architectures_list)
     plot_histogram_with_params(random_architectures_list, options)
-    
-    # /// 3. TRAIN THE NN FOR EACH ARCHITECTURE AND EVALUATE THE MODEL ///
+    ###################################################################################################
+
+    ###################################### 4. GET RESULTS FOR EACH ARCHITECTURE SIZE #######################
     output_features = config_original['dataset_generation']['output_features']
     index_output_features = [output_features.index(feature) for feature in options['extract_results_specific_outputs']]
     if options['RETRAIN_MODEL']:
@@ -333,13 +393,13 @@ def run_experiment_6a(config_original, filename, options):
             config_ = generate_config_(config_original, hidden_sizes, activation_fns, options)
 
             # train model and count training time
-            nn_models, _, _, training_time = get_trained_nn(config_, preprocessed_data, idx)
+            nn_models, _, _, training_time = get_trained_nn(config_, data_preprocessing_info, idx)
 
             # perform model predictions with the trained nn
             mape_nn, mape_uncertainty_nn, normalized_model_predictions, rmse_nn, rmse_uncertainty_nn, results_output_list_nn  = evaluate_model(index_output_features, nn_models, normalized_inputs, normalized_targets)
 
             # perform model predictions with the trained nn
-            mape_proj, rmse_proj, mape_proj_uncertainty, rmse_proj_uncertainty, results_output_list_proj = evaluate_projection(index_output_features, normalized_model_predictions, normalized_targets, normalized_inputs, preprocessed_data, options['w_matrix'])
+            mape_proj, rmse_proj, mape_proj_uncertainty, rmse_proj_uncertainty, results_output_list_proj = evaluate_projection(index_output_features, normalized_model_predictions, normalized_targets, normalized_inputs, data_preprocessing_info, options['w_matrix'])
 
             # compute the number of parameters for the nn architecture
             params = compute_parameters(hidden_sizes)
@@ -400,12 +460,12 @@ def run_experiment_6a(config_original, filename, options):
             df_specific_outputs = df_specific_outputs.sort_values(by='num_params', ascending=True)
             df_specific_outputs.to_csv(specific_outputs_file_path, index=False)
 
-        return df_all, df_specific_outputs
+        return df_all, df_specific_outputs, data_preprocessing_info
     else:
         df_all = pd.read_csv(all_results_file_path)
         df_specific_outputs = pd.read_csv(specific_outputs_file_path)
 
-        return df_all, df_specific_outputs
+        return df_all, df_specific_outputs, data_preprocessing_info
 
 # Plot the results for the mean of all outputs
 def Figure_6a_mean_all_outputs(options, df):
@@ -430,7 +490,7 @@ def Figure_6a_mean_all_outputs(options, df):
     #fig.legend(loc='upper right', fontsize=18, ncol=3, bbox_to_anchor=(0.5, 1.1))
     # Save figure
     fig.tight_layout()
-    output_dir = options['output_dir'] + "plots"
+    output_dir = options['results_dir'] + "plots"
     os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, "mean_all_outputs_mape.pdf")
     fig.savefig(save_path, pad_inches=0.2, format='pdf', dpi=300, bbox_inches='tight')
@@ -469,7 +529,7 @@ def Figure_6a_mean_all_outputs(options, df):
     #fig.legend(loc='right', fontsize=18, ncol=3, bbox_to_anchor=(0.5, 1.1))
     # Save figure
     fig.tight_layout()
-    output_dir = options['output_dir'] + "plots"
+    output_dir = options['results_dir'] + "plots"
     os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, "mean_all_outputs_rmse.pdf")
     fig.savefig(save_path, pad_inches=0.2, format='pdf', dpi=300, bbox_inches='tight')
@@ -533,7 +593,7 @@ def Figure_6a_specific_outputs(options, df_all, df_specific, output_features_nam
     # Adjust layout and save
     plt.tight_layout()
     plt.subplots_adjust(top=0.85)  # Make room for legend
-    output_dir = options['output_dir'] + "plots"
+    output_dir = options['results_dir'] + "plots"
     os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, "specific_outputs_mape.pdf")
     fig.savefig(save_path, pad_inches=0.3, format='pdf', dpi=300, bbox_inches='tight')
@@ -590,7 +650,7 @@ def Figure_6a_specific_outputs(options, df_all, df_specific, output_features_nam
     # Adjust layout and save
     plt.tight_layout()
     plt.subplots_adjust(top=0.85)  # Make room for legend
-    output_dir = options['output_dir'] + "plots"
+    output_dir = options['results_dir'] + "plots"
     os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, "specific_outputs_rmse.pdf")
     fig.savefig(save_path, pad_inches=0.3, format='pdf', dpi=300, bbox_inches='tight')

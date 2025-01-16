@@ -70,67 +70,70 @@ def main():
             Figure_4b(config['plotting'], laws_dict, error_type)
 
         # /// 7. NN and NN_Proj errors as a func of the model's parameters + NN training time /// 
+        n_hidden_layers = 4
         options_fig_6a = {
-            'n_bootstrap_models': 30, # 1
+            'n_bootstrap_models': 1, # 30
             'activation_func': 'leaky_relu', 
             'APPLY_EARLY_STOPPING': True,
-            'num_epochs': 100000,            # Along w/ the early stopping, we use a high max epochs to ensure convergence 
-            'max_hidden_layers': 1, 
-            'min_hidden_layers':1,
-            'max_neurons_per_layer': 500, # 5000
+            'num_epochs': 1000,            # Along w/ the early stopping, we use a high max epochs to ensure convergence 
+            'n_hidden_layers': n_hidden_layers, 
+            'max_neurons_per_layer': 2000,#50000, 
             'min_neurons_per_layer': 1, 
-            'n_steps': 35, #35                 # Defines the number of different architectures to train
+            'n_steps': 50,                  # Defines the number of different architectures to train
             'w_matrix': torch.eye(17), 
             'PRINT_LOSS_VALUES': True,
             'RETRAIN_MODEL': True,
             'extract_results_specific_outputs': ['O2(X)', 'O2(+,X)', 'ne'],
-            'patience': 2,
-            'alpha': 0.0001,
-            'output_dir': 'src/ltp_system/figures/Figures_6a/'         # dir for tables and plots
+            'patience': 10,
+            'alpha': 3, # 0.75
+            'results_dir': f'src/ltp_system/figures/Figures_6a/{n_hidden_layers}_hidden_layers/',         # dir for tables and plots
+            'log_random_architectures': True, 
+            'checkpoints_dir': f'output/ltp_system/checkpoints/different_architectures/{n_hidden_layers}_hidden_layers/', 
+            'dataset_size': 1000
         }
-        # select 'data_size' random rows from the training file to train the different nn architectures
-        temp_file = select_random_rows(training_file, dataset_size = 600, seed = 42)
         # run the experiment and obtain results as pandas dataframes
-        df_results_6a_all, df_results_6a_specific = run_experiment_6a(config, temp_file, options_fig_6a)
+        large_dataset_path = 'data/ltp_system/data_1000_points.txt'
+        df_results_6a_all, df_results_6a_specific, data_preprocessing_info = run_experiment_6a(config, large_dataset_path, options_fig_6a)
         # plot the results
         Figure_6a_mean_all_outputs(options_fig_6a, df_results_6a_all)
         Figure_6a_specific_outputs(options_fig_6a, df_results_6a_all, df_results_6a_specific, output_labels)
         
+        ############################ PLOTS OF OUTPUTS AS A FUNCTION OF PRESSURE FOR DIFFERENT POINTS IN FIG. 6A AND FIG. 6D
+        # Get the output predictions as a function of pressure for different architectures, ie, points in the Figure 6(a)
+        options_fig_6a['RETRAIN_MODEL'] = False
+        target_data_file_path = 'data/ltp_system/const_current/data_50_points_30mA.txt'
+        architectures_file_path = options_fig_6a['results_dir'] + "/table_results/architectures.csv"
+        run_figures_output_vs_pressure_diff_architectures(config, options_fig_6a, target_data_file_path, architectures_file_path, options_fig_6a['checkpoints_dir'], data_preprocessing_info)
+
 
         # /// 8. NN and NN_Proj errors as a func of the dataset size + approximate loki computation time /// 
-        options_fig_6e = {
-            'n_samples': 30,          # N. of random samples to extract for each dataset size
-            'n_bootstrap_models': 10,  # N. of bootstrap models to train for each dataset size
-            'hidden_sizes': [50,50],  
-            'activation_fns': ['leaky_relu', 'leaky_relu'], 
+        """options_fig_6e = {
+            'n_samples': 20,          # N. of random samples to extract for each dataset size
+            'n_bootstrap_models': 1,  # N. of bootstrap models to train for each dataset size
+            'hidden_sizes': [451, 315, 498, 262], #[50,50],  
+            'activation_fns': ['leaky_relu', 'leaky_relu', 'leaky_relu', 'leaky_relu'], 
             'APPLY_EARLY_STOPPING': True,
             'num_epochs':  10000000,
             'extract_results_specific_outputs': ['O2(X)', 'O2(+,X)', 'ne'],
             'w_matrix': torch.eye(17),   # Projection matrix is the identity matrix
             'PRINT_LOSS_VALUES': True,
             'RETRAIN_MODEL': True, 
-            'patience': 2,
-            'alpha': 0.0001,
+            'patience': 5,
+            'alpha': 1,
             'output_dir': 'src/ltp_system/figures/Figures_6d/',
         }
         # Get the list of files to analyze
-        dataset_sizes = [400, 500, 600, 700, 800, 900, 1000]
-        df_results_6e_all, df_results_6e_specific, data_preprocessing_info = run_experiment_6e(config, training_file, dataset_sizes, options_fig_6e)
+        dataset_sizes = [300, 400, 500, 600, 700, 800, 900, 1000, 1250, 1500, 1750, 2000]
+        df_results_6e_all, df_results_6e_specific, data_preprocessing_info = run_experiment_6e(config, large_dataset_path, dataset_sizes, options_fig_6e)
         Figure_6e_mean_all_outputs(options_fig_6e, df_results_6e_all)
         Figure_6e_specific_outputs(options_fig_6e, df_results_6e_all, df_results_6e_specific, output_labels)
         
-        
         ############################ PLOTS OF OUTPUTS AS A FUNCTION OF PRESSURE FOR DIFFERENT POINTS IN FIG. 6A AND FIG. 6D
-        target_data_file_path = 'data/ltp_system/const_current/data_50_points_30mA.txt'
-
-        # Get the output predictions as a function of pressure for different architectures, ie, points in the Figure 6(a)
-        options_fig_6a['RETRAIN_MODEL'] = False
-        run_figures_output_vs_pressure_diff_architectures(config, options_fig_6a, target_data_file_path)
-
         # Get the output predictions as a function of pressure for different training dataset sizes, ie, points in the Figure 6(d)
         options_fig_6e['RETRAIN_MODEL'] = False
+        target_data_file_path = 'data/ltp_system/const_current/data_50_points_30mA.txt'
         run_figures_output_vs_pressure_diff_datasets(config, options_fig_6e, dataset_sizes, target_data_file_path)
-        ################################################################################################################
+        ################################################################################################################"""
     
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")

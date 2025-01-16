@@ -458,7 +458,7 @@ def run_figures_output_vs_pressure_diff_datasets(config, options, dataset_sizes_
 
 
 # 
-def run_figures_output_vs_pressure_diff_architectures(config, options, target_data_file_path):
+def run_figures_output_vs_pressure_diff_architectures(config, options, target_data_file_path, architectures_file_path, checkpoints_folder, data_preprocessing_info):
 
     """
     For each dataset size, different models were trained with different samples. 
@@ -472,7 +472,6 @@ def run_figures_output_vs_pressure_diff_architectures(config, options, target_da
     n_outputs = 17  # number of target features
 
     # load the nn architectures from a file
-    architectures_file_path = "src/ltp_system/figures/Figures_6a/table_results/architectures.csv"
     random_architectures_list = []
     with open(architectures_file_path, mode='r') as file:
         reader = csv.reader(file)
@@ -499,7 +498,7 @@ def run_figures_output_vs_pressure_diff_architectures(config, options, target_da
         df_continuum = pd.DataFrame(columns=columns_continuum)
 
         # directory where the trained models are stored
-        checkpoint_dir = f"output/ltp_system/checkpoints/different_architectures/architecture_{idx_architecture}"
+        checkpoint_dir = f"{checkpoints_folder}architecture_{idx_architecture}"
         
         # load the already trained model from the checkpoint dir
         try:
@@ -511,9 +510,9 @@ def run_figures_output_vs_pressure_diff_architectures(config, options, target_da
             nn_models, _, _, _, _ = load_checkpoints(options, NeuralNetwork, checkpoint_dir)
             
             # Load the preprocessing_info object with the information about the scalers
-            file_path = "output/ltp_system/checkpoints/different_architectures/data_preprocessing_info.pkl"
+            file_path = f"{checkpoints_folder}data_preprocessing_info.pkl"
             with open(file_path, 'rb') as file:
-                data_preprocessing_info = pickle.load(file)                
+                data_preprocessing_info_ = pickle.load(file)                
                 
         except FileNotFoundError:
             raise ValueError("Checkpoint not found. Set RETRAIN_MODEL to True or provide a valid checkpoint.")
@@ -562,4 +561,5 @@ def run_figures_output_vs_pressure_diff_architectures(config, options, target_da
         df_continuum = pd.concat([df_continuum, new_data])
             
         # make the plot
-        Figure_6b(config, df_discrete, df_continuum, test_case = f"different_architectures/architecture_{idx_architecture}")
+        n_hidden_layers = options['n_hidden_layers']
+        Figure_6b(config, df_discrete, df_continuum, test_case = f"different_architectures/{n_hidden_layers}_hidden_layers/architecture_{idx_architecture}")
