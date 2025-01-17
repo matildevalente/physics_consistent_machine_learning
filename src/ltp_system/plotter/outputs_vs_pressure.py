@@ -458,7 +458,7 @@ def run_figures_output_vs_pressure_diff_datasets(config, options, dataset_sizes_
 
 
 # 
-def run_figures_output_vs_pressure_diff_architectures(config, options, target_data_file_path, architectures_file_path, checkpoints_folder, data_preprocessing_info):
+def run_figures_output_vs_pressure_diff_architectures(config, options, target_data_file_path, architectures_file_path):
 
     """
     For each dataset size, different models were trained with different samples. 
@@ -466,6 +466,8 @@ def run_figures_output_vs_pressure_diff_architectures(config, options, target_da
     The final (R,I)-constant curve prediction is a mean of the predictions of the different models trained with different samples of the same size.
     Different samples are used to reduce the bias of the datapoints selection.
     """
+
+    checkpoints_folder = options['checkpoints_dir']
 
     # extract the number of samples per dataset size
     n_inputs = 3  # number of input features
@@ -512,7 +514,7 @@ def run_figures_output_vs_pressure_diff_architectures(config, options, target_da
             # Load the preprocessing_info object with the information about the scalers
             file_path = f"{checkpoints_folder}data_preprocessing_info.pkl"
             with open(file_path, 'rb') as file:
-                data_preprocessing_info_ = pickle.load(file)                
+                data_preprocessing_info = pickle.load(file)                
                 
         except FileNotFoundError:
             raise ValueError("Checkpoint not found. Set RETRAIN_MODEL to True or provide a valid checkpoint.")

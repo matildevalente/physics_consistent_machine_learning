@@ -86,17 +86,14 @@ def generate_config_(config, hidden_sizes, activation_fns, options):
     }
     
 # train the nn for a chosen architecture or load the parameters if it has been trained 
-def get_trained_nn(config, preprocessed_data, idx_arc):
+def get_trained_nn(config, data_preprocessing_info, idx_arc, train_data, val_loader):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     checkpoint_dir = os.path.join(config['nn_model']['checkpoints_dir'], f'architecture_{idx_arc}')  #os.path.join('output', 'ltp_system', 'checkpoints', 'different_architectures', f'architecture_{idx_arc}')
     os.makedirs(checkpoint_dir, exist_ok=True)
 
-    train_data = preprocessed_data.train_data
-    val_loader = torch.utils.data.DataLoader(preprocessed_data.val_data, batch_size=config['nn_model']['batch_size'], shuffle=True)
-
     if config['nn_model']['RETRAIN_MODEL']:
-        nn_models, nn_losses_dict, training_time = get_trained_bootstraped_models(config['nn_model'], config['plotting'], preprocessed_data, nn.MSELoss(), checkpoint_dir, device, val_loader, train_data, seed = 'default')
+        nn_models, nn_losses_dict, training_time = get_trained_bootstraped_models(config['nn_model'], config['plotting'], data_preprocessing_info, nn.MSELoss(), checkpoint_dir, device, val_loader, train_data, seed = 'default')
         return nn_models, nn_losses_dict, device, training_time
     else:
         try:
@@ -106,25 +103,15 @@ def get_trained_nn(config, preprocessed_data, idx_arc):
             raise ValueError("Checkpoint not found. Set RETRAIN_MODEL to True or provide a valid checkpoint.")
 
 # the the mape and mape uncertainty of the nn aggregated model
-def evaluate_model(index_output_features, nn_models, normalized_inputs, normalized_targets):
+def evaluate_model(index_output_features, normalized_model_predictions, normalized_targets):
     # perform a copy to avoid modifying the original arrays
-    normalized_inputs_ = (np.array(normalized_inputs)).copy()
     targets_norm_ = (np.array(normalized_targets)).copy()
-    
-    # get the normalized model predictions 
-    normalized_model_predictions =  get_average_predictions(nn_models, torch.tensor(normalized_inputs_))
-    model_pred_uncertainty =  get_predictive_uncertainty(nn_models, torch.tensor(normalized_inputs_)) 
-
-    m = len(model_pred_uncertainty)
-
-    # perform a copy to avoid modifying the original arrays
     normalized_model_predictions_ = (np.array(normalized_model_predictions)).copy()
-    model_pred_uncertainty_ = (np.array(model_pred_uncertainty)).copy()
 
     # compute the MAPE and MAPE uncertainty with respect to target
     mape_all_outputs = np.mean(np.abs((targets_norm_ - normalized_model_predictions_) / targets_norm_)) * 100
     # compute the RMSE and RMSE uncertainty with respect to target
-    rmse_all_outputs = np.sqrt(mean_squared_error(normalized_targets, normalized_model_predictions_))
+    rmse_all_outputs = np.sqrt(mean_squared_error(targets_norm_, normalized_model_predictions_))
 
     # compute the uncertainties
     mape_err_list = []
@@ -163,19 +150,22 @@ def evaluate_model(index_output_features, nn_models, normalized_inputs, normaliz
             rows_list.append([index_output_features, mape, rmse])
 
 
-    return mape_all_outputs, mape_uncertainty, normalized_model_predictions_, rmse_all_outputs, rmse_uncertainty, rows_list
+    return mape_all_outputs, mape_uncertainty, rmse_all_outputs, rmse_uncertainty, rows_list
 
 # get the mape of the nn projected predictions
-def evaluate_projection(index_output_features,normalized_model_predictions, normalized_targets, normalized_inputs, data_preprocessed, w_matrix):
+def evaluate_projection(index_output_features, normalized_model_predictions, normalized_targets, normalized_inputs, data_preprocessed, w_matrix):
     # perform a copy to avoid modifying the original arrays
     normalized_inputs_ = (np.array(normalized_inputs)).copy()
     normalized_targets_ = (np.array(normalized_targets)).copy()
     normalized_model_predictions_ = (np.array(normalized_model_predictions)).copy()
-    
+
     # get the normalized projection predicitions of the model
     normalized_proj_predictions  =  get_average_predictions_projected(torch.tensor(normalized_model_predictions_), torch.tensor(normalized_inputs_), data_preprocessed, constraint_p_i_ne, w_matrix) 
     normalized_proj_predictions = np.array(torch.tensor(np.stack(normalized_proj_predictions)))
-    normalized_proj_predictions_ = (np.array(normalized_proj_predictions)).copy()
+
+    # perform a copy to avoid modifying the original arrays
+    normalized_proj_predictions_ = (normalized_proj_predictions).copy()
+    normalized_targets_ = (np.array(normalized_targets)).copy()
 
     # compute the mape and sem with respect to target
     mape_all_outputs = np.mean(np.abs((normalized_targets_ - normalized_proj_predictions_) / normalized_targets_)) * 100
@@ -196,13 +186,14 @@ def evaluate_projection(index_output_features,normalized_model_predictions, norm
     # compute the uncertainties
     mape_uncertainty = np.std(mape_err_list) / np.sqrt(len(mape_err_list))
     rmse_uncertainty = np.std(rmse_err_list) / np.sqrt(len(rmse_err_list))
-    
+
+
     # loop over the output features to compute the MAPE and RMSE for each output feature
     if index_output_features is not None:
         rows_list = []
         for i in index_output_features:
             # copy to avoid modifying the original arrays
-            normalized_proj_predictions_ = (np.array(normalized_proj_predictions)).copy()
+            normalized_proj_predictions_ = (np.array(normalized_model_predictions)).copy()
             normalized_targets_ = (np.array(normalized_targets)).copy()
             
             # get the i-th output feature
@@ -279,7 +270,7 @@ def get_random_architectures(options):
         )
 
     # Add specific architectures and sort
-    architectures = np.concatenate([architectures, [5, 10, 18]])
+    #architectures = np.concatenate([architectures, [5, 10, 18]])
     architectures = np.unique(np.sort(architectures))  # Added unique to remove potential duplicates
 
     # Convert each element to a sublist of repeated neurons
@@ -287,6 +278,8 @@ def get_random_architectures(options):
     for architecture in architectures:
         sublist = [architecture] * n_hidden_layers
         architectures_list.append(sublist)
+    
+    architectures_list.append([451, 315, 498, 262])
 
     return architectures_list
 
@@ -315,7 +308,8 @@ def split_dataset_(config_, large_dataset_path, n_testing_points):
 
 # main function to run the experiment
 # (config, large_dataset_path, options_fig_6a, dataset_size = 1000, seed = 42)
-def run_experiment_6a(config_original, large_dataset_path, options):
+def run_experiment_6a(config_original, large_dataset_path, options, n_testing_points = 500):
+    set_seed(42) 
     ###################################### 1. SETUP AND DEFINITIONS ###################################
     # define the file paths for the results
     table_dir = os.path.join(options['results_dir'], 'table_results')
@@ -324,41 +318,11 @@ def run_experiment_6a(config_original, large_dataset_path, options):
     architectures_file_path = os.path.join(table_dir, 'architectures.csv')
     all_results_file_path = os.path.join(table_dir, 'all_outputs_mean_results.csv')
     specific_outputs_file_path = os.path.join(table_dir, 'specific_outputs_results.csv')
+    output_features = config_original['dataset_generation']['output_features']
+    index_output_features = [output_features.index(feature) for feature in options['extract_results_specific_outputs']]
     ###################################################################################################
 
-    ###################################### 2. DEAL WITH DATA SELECTION ################################
-    """# load the dataset  
-    _, full_dataset = load_dataset(config_original, dataset_dir = large_dataset_path)
-    # preprocess the dataset
-    data_preprocessing_info = DataPreprocessor(config_original)
-    data_preprocessing_info.setup_dataset(full_dataset.x, full_dataset.y)  
-    # load the data
-    normalized_inputs, normalized_targets = load_data( large_dataset_path, data_preprocessing_info)
-    # Save the data_preprocessing_info object
-    directory = options['checkpoints_dir']
-    os.makedirs(directory, exist_ok=True)
-    file_path = os.path.join(directory, "data_preprocessing_info.pkl")
-    with open(file_path, 'wb') as file:
-        pickle.dump(data_preprocessing_info, file)"""
-    # 
-    data_preprocessing_info, training_file, test_inputs_norm, test_targets_norm = split_dataset_(config_, large_dataset_path, options['dataset_size'])
-    # 1. read from the train_path file and randomly select 'dataset_size' rows - save the dataset to a local dir sampled_dataset_dir
-    sampled_dataset_dir = select_random_rows(training_file, options['dataset_size'], seed = 42)
-    # 2. read the dataset from the sampled_dataset_dir and preprocess data
-    _, sampled_dataset = load_dataset(config_, sampled_dataset_dir)
-    # 3. preprocess the data: the training sets, ie, subsets of the bigger dataset, are preprocessed using the scalers fitted on the large dataset to avoid data leakage.
-    train_data_norm, test_data_norm, val_data_norm  = setup_dataset_with_preproprocessing_info(sampled_dataset.x, sampled_dataset.y, data_preprocessing_info)  
-    normalized_inputs = train_data_norm.x
-    normalized_targets = train_data_norm.y
-    # Save the data_preprocessing_info object
-    directory = "output/ltp_system/checkpoints/different_architectures"
-    os.makedirs(directory, exist_ok=True)
-    file_path = os.path.join(directory, "data_preprocessing_info.pkl")
-    with open(file_path, 'wb') as file:
-        pickle.dump(data_preprocessing_info, file)
-    ###################################################################################################
-
-    ###################################### 3. GET RANDOM ARCHITECTURES  ###############################
+    ###################################### 2. GET RANDOM ARCHITECTURES  ###############################
     if options['RETRAIN_MODEL']:
         # generate random nn architectures
         random_architectures_list = get_random_architectures(options)
@@ -378,40 +342,73 @@ def run_experiment_6a(config_original, large_dataset_path, options):
     plot_histogram_with_params(random_architectures_list, options)
     ###################################################################################################
 
+    ####### 3. SELECT THE TESTING POINTS FROM LARGE DATASET AND STORE DATA_PREPROCESSING INFO #########
+    data_preprocessing_info, training_file, test_inputs_norm, test_targets_norm = split_dataset_(config_original, large_dataset_path, n_testing_points)
+    # Save the data_preprocessing_info object
+    os.makedirs(options['checkpoints_dir'], exist_ok=True)
+    file_path = os.path.join(options['checkpoints_dir'], "data_preprocessing_info.pkl")
+    with open(file_path, 'wb') as file:
+        pickle.dump(data_preprocessing_info, file)
+    ###################################################################################################
+
+    ###################################### 4. GET RANDOM ARCHITECTURES  ###############################
+    # 1. read from the train_path file and randomly select 'dataset_size' rows - save the dataset to a local dir sampled_dataset_dir
+    sampled_dataset_dir = select_random_rows(training_file, options['dataset_size'], seed = 42)
+    # 2. read the dataset from the sampled_dataset_dir and preprocess data
+    _, sampled_dataset = load_dataset(config_original, sampled_dataset_dir)
+    # 3. preprocess the data: the training sets, ie, subsets of the bigger dataset, are preprocessed using the scalers fitted on the large dataset to avoid data leakage.
+    train_data_norm, _, val_data_norm  = setup_dataset_with_preproprocessing_info(sampled_dataset.x, sampled_dataset.y, data_preprocessing_info)  
+    # 4. create the val loader needed for training the NN.
+    val_loader = torch.utils.data.DataLoader(val_data_norm, batch_size=config_original['nn_model']['batch_size'], shuffle=True)
+    ###################################################################################################
+
     ###################################### 4. GET RESULTS FOR EACH ARCHITECTURE SIZE #######################
-    output_features = config_original['dataset_generation']['output_features']
-    index_output_features = [output_features.index(feature) for feature in options['extract_results_specific_outputs']]
     if options['RETRAIN_MODEL']:
         # initialize the results list
         results = []
         outputs_specific_results = []
         # iterate over the nn architectures
         for idx, hidden_sizes in enumerate(tqdm(random_architectures_list, desc="Evaluating Different Architectures")):
-            # generate the activation functions for the nn
+            set_seed(42) 
+            # 1. generate the activation functions for the nn
             activation_fns = [options['activation_func']] * len(hidden_sizes) 
-            # generate the config for the nn
+
+            # 2. generate the config for the nn
             config_ = generate_config_(config_original, hidden_sizes, activation_fns, options)
 
-            # train model and count training time
-            nn_models, _, _, training_time = get_trained_nn(config_, data_preprocessing_info, idx)
+            # 3. train model and count training time
+            nn_models, _, _, _ = get_trained_nn(config_, data_preprocessing_info, idx, train_data_norm, val_loader)
+            
+            # 4. perform copies of the test inputs and test targets to avoid modifying them.
+            test_inputs_norm_  = test_inputs_norm.clone() 
+            test_targets_norm_ = test_targets_norm.clone() 
 
-            # perform model predictions with the trained nn
-            mape_nn, mape_uncertainty_nn, normalized_model_predictions, rmse_nn, rmse_uncertainty_nn, results_output_list_nn  = evaluate_model(index_output_features, nn_models, normalized_inputs, normalized_targets)
+            # 5. use the trained nn to make predictions on the test inputs - get the normalized model predictions 
+            nn_predictions_norm =  get_average_predictions(nn_models, torch.tensor(test_inputs_norm_))
+            nn_pred_uncertainties =  get_predictive_uncertainty(nn_models, torch.tensor(test_inputs_norm_)) # for each point prediction gives an uncertainty value
+            
+            # 6. perform copies of the test inputs and test targets to avoid modifying them.
+            nn_predictions_norm_  = nn_predictions_norm.clone() 
+            nn_pred_uncertainties_ = nn_pred_uncertainties.clone() 
+            test_targets_norm_ = test_targets_norm.clone() 
+            
+            # 7. compute errors of the nn predictions on the test set: mape_all_outputs, mape_uncertainty, rmse_all_outputs, rmse_uncertainty, rows_list
+            mape_nn, mape_uncertainty_nn, rmse_nn, rmse_uncertainty_nn, results_output_list_nn  = evaluate_model(index_output_features, nn_predictions_norm_, test_targets_norm_)
 
-            # perform model predictions with the trained nn
-            mape_proj, rmse_proj, mape_proj_uncertainty, rmse_proj_uncertainty, results_output_list_proj = evaluate_projection(index_output_features, normalized_model_predictions, normalized_targets, normalized_inputs, data_preprocessing_info, options['w_matrix'])
+            # 8. compute errors of the proj predictions on the test set:perform model predictions with the trained nn
+            mape_proj, rmse_proj, mape_proj_uncertainty, rmse_proj_uncertainty, results_output_list_proj = evaluate_projection(index_output_features, nn_predictions_norm_, test_targets_norm_, test_inputs_norm_, data_preprocessing_info, options['w_matrix'])
 
             # compute the number of parameters for the nn architecture
             params = compute_parameters(hidden_sizes)
 
             # append the results for the whole dataset
-            results.append((params, mape_nn, mape_uncertainty_nn, mape_proj, mape_proj_uncertainty, rmse_nn, rmse_uncertainty_nn, rmse_proj, rmse_proj_uncertainty, training_time))
+            results.append((params, mape_nn, mape_uncertainty_nn, mape_proj, mape_proj_uncertainty, rmse_nn, rmse_uncertainty_nn, rmse_proj, rmse_proj_uncertainty))
 
             # append the results for the specific outputs.   # index of output,           mape nn        ,            rmse nn        ,             mape proj     ,            rmse proj
             outputs_specific_results.append((params, results_output_list_nn, results_output_list_proj))
         
         # /// 4. CREATE THE DATAFRAME FOR THE RESULTS CONCERNING THE WHOLE DATASET ///
-        params, mapes_nn, mape_uncertainties_nn, mapes_proj, mape_proj_uncertainties, rmses_nn, rmse_uncertainties_nn, rmses_proj, rmse_proj_uncertainties, times = zip(*results)
+        params, mapes_nn, mape_uncertainties_nn, mapes_proj, mape_proj_uncertainties, rmses_nn, rmse_uncertainties_nn, rmses_proj, rmse_proj_uncertainties = zip(*results)
         data = {
             'architectures': random_architectures_list, 
             'num_params': params,
@@ -423,7 +420,6 @@ def run_experiment_6a(config_original, large_dataset_path, options):
             'uncertanties_rmse_nn': rmse_uncertainties_nn,
             'rmses_proj': rmses_proj,
             'uncertanties_rmse_proj': rmse_proj_uncertainties,
-            'model_training_time': times
         }
         # Create a DataFrame from the results and store as .csv in a local directory
         df_all = pd.DataFrame(data)
@@ -460,12 +456,12 @@ def run_experiment_6a(config_original, large_dataset_path, options):
             df_specific_outputs = df_specific_outputs.sort_values(by='num_params', ascending=True)
             df_specific_outputs.to_csv(specific_outputs_file_path, index=False)
 
-        return df_all, df_specific_outputs, data_preprocessing_info
+        return df_all, df_specific_outputs
     else:
         df_all = pd.read_csv(all_results_file_path)
         df_specific_outputs = pd.read_csv(specific_outputs_file_path)
 
-        return df_all, df_specific_outputs, data_preprocessing_info
+        return df_all, df_specific_outputs
 
 # Plot the results for the mean of all outputs
 def Figure_6a_mean_all_outputs(options, df):
