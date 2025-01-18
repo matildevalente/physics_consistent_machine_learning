@@ -77,7 +77,7 @@ def main():
             'n_samples': 1,
             'num_epochs': 1000,
             'hidden_sizes': None,
-            'RETRAIN_MODEL': False,  # False
+            'RETRAIN_MODEL': True,  # False
             'n_bootstrap_models': 1, 
             'PRINT_LOSS_VALUES': False,
             'w_matrix': torch.eye(17),
@@ -107,7 +107,7 @@ def main():
         
         # /// 8. NN and NN_Proj errors as a func of the dataset size + approximate loki computation time /// 
         options['n_samples']     = 20
-        options['RETRAIN_MODEL'] = False   # True
+        options['RETRAIN_MODEL'] = True   # True
         options['hidden_sizes']  = [50,50] # [451, 315, 498, 262]
         options['output_dir']    = 'src/ltp_system/figures/Figures_6d/'
         options['checkpoints_dir'] = f'output/ltp_system/checkpoints/different_datasets/'
