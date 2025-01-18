@@ -1,0 +1,20 @@
+pinn_model:
+  RETRAIN_MODEL: true
+  activation_fn: relu
+  hidden_sizes: [61, 8, 146, 36]
+  input_size: 4
+  learning_rate: 0.0001
+  loss_physics_weight: 0.005
+  num_epochs: 20
+  output_size: 4
+plotting:
+  PLOT_LOSS_CURVES: true
+  PRINT_LOSS_VALUES: true
+  output_dir: src/spring_mass_system/figures/
+spring_mass_system:
+  K1: 5
+  K2: 2
+  L1: 0.5
+  L2: 0.5
+  M1: 1
+  M2: 1

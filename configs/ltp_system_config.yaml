@@ -1,0 +1,64 @@
+dataset_generation:
+  delimiter: ' '
+  n_simulations: 10
+  loki_path: "src/ltp_system/dataset_gen/LoKI_v3.1.0-v2_cycleChanges"
+  chem_file: "oxygen_novib.chem"  # 2. Define Reaction Scheme and Setup Files
+  chem_file_dir: "src/ltp_system/dataset_gen/oxygen_novib.chem"
+  setup_file: "oxygen_chem_setup_novib.in"
+  setup_file_dir: "src/ltp_system/dataset_gen/oxygen_chem_setup_novib.in"
+  input_features: ['P','I', 'R']
+  output_features: ['O2(X)','O2(a1Dg)', 'O2(b1Sg+)','O2(Hz)','O2(+,X)', 'O(3P)','O(1D)','O(+,gnd)', 'O(-,gnd)','O3(X)','O3(exc)', 'Tg','Tnw','Red_E', 'vd', 'Te','ne']
+  dataset_dir: 'data/ltp_system'
+  loki_computation_time_100_points: 2339 # seconds, uniform sampling
+
+
+data_prep:
+  fraction_train: 0.8    
+  fraction_val: 0.1    
+  fraction_test: 0.1    
+  skew_threshold_down: 0  
+  skew_threshold_up: 3 
+
+nn_model:
+  RETRAIN_MODEL: False
+  APPLY_EARLY_STOPPING: True
+  hidden_sizes: [50,50] #[451, 315, 498, 262]
+  num_epochs:  1000 
+  learning_rate: 0.0001
+  activation_fns: ["leaky_relu", "leaky_relu"]
+  batch_size: 10
+  num_arquitectures: 300                     # architectures explored in optimization
+  training_threshold: 1E-4 #0.000001
+  n_bootstrap_models: 30
+  lambda_physics: [0, 0, 0]
+  patience: 2         # (int) Number of epochs to check
+  alpha: 0.01
+
+
+pinn_model:
+  RETRAIN_MODEL: False
+  OPTIMIZE_ARC: False
+  APPLY_EARLY_STOPPING: True
+  hidden_sizes: [50,50] 
+  activation_fns: ["leaky_relu", "leaky_relu"]
+  num_epochs:  1000
+  learning_rate: 0.0001
+  lambda_physics: [0.005, 0.005, 0.005]
+  batch_size: 10
+  training_threshold: 1E-4
+  n_bootstrap_models: 30
+  patience: 2         # (int) Number of epochs to check
+  alpha: 0.01 
+
+
+plotting:
+  output_dir: "src/ltp_system/figures/"
+  PLOT_LOSS_CURVES: True
+  PRINT_LOSS_VALUES: False
+  palette: ['#0b63a0', '#FFAE0D', '#006F09', '#2DF33D', '#B51D1D', '#FF6969' ]
+  barplot_palette: ['#1d67a9', '#ce5f2c', '#c46f9d', '#1a916b', '#df9a31', '#8c564b', '#9467bd', '#17becf']
+
+
+
+
+

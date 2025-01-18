@@ -1,0 +1,48 @@
+dataset_generation:
+  GENERATE_DATASET: False
+  num_samples: 100000  # Total N of points in dataset
+  dt_RK: 0.0001         # Time step used in the RK computation
+  E_MAX: 5             # Maximum energy constraint
+  N_RK_STEPS: 500      # N of sequential RK4 steps used to compute an output from an input
+  
+
+spring_mass_system:
+  K1: 5    # Spring constant 1
+  K2: 2    # Spring constant 2
+  M1: 1    # Mass 1
+  M2: 1    # Mass 2
+  L1: 0.5  # Natural length spring 1
+  L2: 0.5  # Natural length spring 2
+
+nn_model:
+  RETRAIN_MODEL: False
+  input_size: 4
+  output_size: 4
+  hidden_sizes: [22, 98, 9] 
+  num_epochs:  60
+  learning_rate: 0.0001
+  activation_fn: "leaky_relu"
+
+pinn_model:
+  RETRAIN_MODEL: False
+  OPTIMIZE_ARC: False
+  input_size: 4
+  output_size: 4
+  hidden_sizes: [22, 98, 9] 
+  activation_fn: "leaky_relu"
+  num_epochs:   60
+  learning_rate: 0.0001
+  loss_physics_weight: 0.005
+
+
+plotting:
+  output_dir: "src/spring_mass_system/figures/"
+  PLOT_LOSS_CURVES: False
+  PRINT_LOSS_VALUES: True
+
+fig_3_options:
+  rerun_results: True
+  output_dir: "output/spring_mass_system/checkpoints/fig_3/"
+
+
+
