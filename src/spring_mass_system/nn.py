@@ -133,12 +133,12 @@ def plot_loss_curves_nn(config, train_losses, val_losses):
 
     # Plot in log scale
     plt.figure(figsize=(10, 6))
-    plt.plot(train_losses, label=r'Train Loss ($\mathcal{L_{\text{train}}}$)', linewidth=2, color='#1f77b4')
-    plt.plot(val_losses, label=r'Validation Loss ($\mathcal{L_{\text{val}}}$)', linewidth=2,  linestyle='--', color='#ff7f0e')
+    plt.plot(train_losses, label=r'Train Loss ($\mathcal{L}_{\mathrm{train}}$)', linewidth=2, color='#1f77b4')
+    plt.plot(val_losses, label=r'Validation Loss ($\mathcal{L}_{\mathrm{val}}$)', linewidth=2,  linestyle='--', color='#ff7f0e')
     plt.xticks(fontweight='bold', fontsize=14)
     plt.yticks(fontweight='bold', fontsize=14)
     plt.xlabel('Epochs', fontweight='bold', fontsize=16)
-    plt.ylabel(r'$\mathcal{L_{\text{MSE}}}$', fontweight='bold', fontsize=16)
+    plt.ylabel(r'$\mathcal{L}_{\mathrm{MSE}}$', fontweight='bold', fontsize=16)
     plt.legend(fontsize=12)
     plt.yscale('log')  # Set y-axis to logarithmic scale
     plt.tight_layout()

@@ -99,16 +99,16 @@ def get_results(scaler_X, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn):
     print(f"RK Energy MAE = {rk_energy_mae:.4e}    RK Energy RMSE = {results['E']['RK'][0]:.4e}    RK Energy MAPE = {rk_energy_mape:.4f} %")
     
     # create a dict for the mape values and the sem values
-    mape_dict = {df_name: [results[col][df_name][0] for col in ['x1', 'v1', 'x2', 'v2', 'E']] for df_name in dataframes}
+    error_dict = {df_name: [results[col][df_name][0] for col in ['x1', 'v1', 'x2', 'v2', 'E']] for df_name in dataframes}
     sem_dict = {df_name: [results[col][df_name][1] for col in ['x1', 'v1', 'x2', 'v2', 'E']] for df_name in dataframes}
     # append the values for the RK
-    mape_dict['RK'] = [results['E']['RK'][0]]
+    error_dict['RK'] = [results['E']['RK'][0]]
     sem_dict['RK'] = [results['E']['RK'][1]]
 
-    return mape_dict, sem_dict
+    return error_dict, sem_dict
 
 # save .csv file with the error values presented in the plot
-def save_df(variables, mape_dict, sem_dict):
+def save_df(config, variables, error_dict, sem_dict):
     
     def append_rows(data_dict, metric, rows, variables):
         
@@ -129,7 +129,7 @@ def save_df(variables, mape_dict, sem_dict):
     # IMPLEMENT CODE HERE #################################
     rows = []
     # append the RMSE values
-    append_rows(mape_dict, "RMSE", rows, variables)
+    append_rows(error_dict, "RMSE", rows, variables)
     # append the SEM values
     append_rows(sem_dict, "SEM", rows, variables)
     # save dataframe
@@ -137,9 +137,9 @@ def save_df(variables, mape_dict, sem_dict):
     #######################################################
 
     # Save .csv file with the error values presented in the plot
-    output_dir = "output/spring_mass_system/single_initial_condition/"
+    output_dir = output_dir = config['plotting']['output_dir'] + "single_initial_condition/"
     os.makedirs(output_dir, exist_ok=True)  
-    csv_path = os.path.join(output_dir, "error_values.csv")
+    csv_path = os.path.join(output_dir, "table_norm_errors_Figure_2c.csv")
     df.to_csv(csv_path, index=False)
 
 # Figure 2d: Bar plot of the MAPE of the NN, standard PINN, and corresponding projected trajectories
@@ -153,8 +153,8 @@ def plot_bar_plot(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn, p
     scaler_X = preprocessed_data['scaler_X']
 
     # Get the error values to add to the plot
-    mape_dict, sem_dict = get_results(scaler_X, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn)
-    save_df(variables, mape_dict, sem_dict)
+    error_dict, sem_dict = get_results(scaler_X, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn)
+    save_df(config, variables, error_dict, sem_dict)
 
     # Create the plot with the computed error values
     mpl.use('pgf')
@@ -165,7 +165,7 @@ def plot_bar_plot(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn, p
     bar_width = 0.2 
     max_mape_with_yerr = -float('inf')
     
-    for i, (df_name, mape) in enumerate(mape_dict.items()):
+    for i, (df_name, mape) in enumerate(error_dict.items()):
         if(df_name == "RK"):
             continue
         
@@ -173,7 +173,7 @@ def plot_bar_plot(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn, p
         sem_values = sem_dict[df_name][:4]
 
         # add the 4 bars, one for each state variable
-        ax1.bar(variables_indices + (i - (len(mape_dict) / 2)) * bar_width + 0.2, 
+        ax1.bar(variables_indices + (i - (len(error_dict) / 2)) * bar_width + 0.2, 
             mape_values, bar_width, yerr=sem_values, label=models_parameters[df_name]['name'], 
             color=models_parameters[df_name]['color'], capsize=5, error_kw={'capthick': 2}
         )
@@ -200,7 +200,7 @@ def plot_bar_plot(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn, p
 
     ########################################### Create bar plot for the energy conservation errors
     bar_width = 0.6
-    for i, (df_name, mape) in enumerate(mape_dict.items()):
+    for i, (df_name, mape) in enumerate(error_dict.items()):
         if(df_name == "RK"):
             continue
         ax2.bar(
@@ -237,8 +237,9 @@ def plot_bar_plot(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn, p
     # Save figure
     output_dir = config['plotting']['output_dir'] + "single_initial_condition/"
     os.makedirs(output_dir, exist_ok=True)
-    plt.savefig(os.path.join(output_dir, f"barplot.svg"), bbox_inches='tight', pad_inches=0.2)
-    plt.savefig(os.path.join(output_dir, f"barplot.pdf"), bbox_inches='tight', pad_inches=0.2)
+    save_path = os.path.join(output_dir, f"Figure_2c")
+    savefig(save_path, pad_inches=0.2)
+
 
   
 

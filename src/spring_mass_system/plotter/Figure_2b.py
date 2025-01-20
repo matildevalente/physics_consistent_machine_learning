@@ -188,13 +188,12 @@ def plot_predicted_trajectory_vs_target(
                 )
                 y_min = min(y_min, other_pred[var][time_mask].min(), df_target[var][time_mask].min())
                 y_max = max(y_max, other_pred[var][time_mask].max(), df_target[var][time_mask].max())
-            padding = 0.05 * (y_max - y_min)
-            y_min -= padding
-            y_max += padding
+            
             ax_compare.plot(df_target['time(s)'], df_target[var], label='Target', linestyle="--", color="#2ca02c", linewidth=3)
             # Set the zoomed-in x-axis range for this row
             ax_compare.set_xlim([zoom_start, zoom_end])
-            ax_compare.set_ylim([y_min, y_max])
+            padding = 0.05 * (y_max - y_min)
+            ax_compare.set_ylim([y_min - padding, y_max + padding])
             if i == 3:
                 ax_compare.set_xlabel('Time (s)', fontsize=28)
             ax_compare.tick_params(axis='both', labelsize=26)
@@ -213,6 +212,6 @@ def plot_predicted_trajectory_vs_target(
     # Save figure
     output_dir = config['plotting']['output_dir'] + "single_initial_condition/"
     os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, f"Figure_1b")
+    save_path = os.path.join(output_dir, f"Figure_2a")
     savefig(save_path, pad_inches = 0.2)
 

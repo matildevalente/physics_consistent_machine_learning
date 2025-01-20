@@ -101,5 +101,5 @@ def plot_predicted_energies_vs_target(
     # Save figures
     output_dir = config['plotting']['output_dir'] + "single_initial_condition/"
     os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, f"energy_vs_target")
+    save_path = os.path.join(output_dir, f"Figure_2b")
     savefig(save_path, pad_inches=0.2)

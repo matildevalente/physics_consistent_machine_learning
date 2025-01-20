@@ -223,17 +223,21 @@ def plot_loss_curves_pinn(config, pinn_losses_dict):
 
     plt.figure(figsize=(10, 6))
     # Append total
-    plt.plot(train_losses_total, label=r'Train Loss Total ($\mathcal{L_{\text{train}}}$)', linewidth=2, color='#1f77b4')
-    plt.plot(val_losses, label=r'Validation Loss ($\mathcal{L_{\text{val}}}$)', linewidth=2, color='#ff7f0e',  linestyle='--')
-    # Append data
-    plt.plot(train_losses_data, label=r'Weighted $\mathcal{L_{\text{data}}}$', linewidth=2, color='#2ca02c')
-    # Append physics
-    plt.plot(train_losses_physics, label=r'Weighted $\mathcal{L_{\text{physics}}}$', linewidth=2, color='#d62728')
+    plt.plot(train_losses_total, label=r'Train Loss Total ($\mathcal{L}_{\mathrm{train}}$)', linewidth=2, color='#1f77b4')
+    
+    # Plot validation loss
+    plt.plot(val_losses, label=r'Validation Loss ($\mathcal{L}_{\mathrm{val}}$)', linewidth=2, color='#ff7f0e',  linestyle='--')
+    
+    # Plot data loss
+    plt.plot(train_losses_data, label=r'Weighted $\mathcal{L}_{\mathrm{data}}$', linewidth=2, color='#2ca02c')
+    
+    # Plot physics loss
+    plt.plot(train_losses_physics, label=r'Weighted $\mathcal{L}_{\mathrm{physics}}$', linewidth=2, color='#d62728')
     # define style
     plt.xticks(fontweight='bold', fontsize=14)
     plt.yticks(fontweight='bold', fontsize=14)
     plt.xlabel('Epochs', fontweight='bold', fontsize=16)
-    plt.ylabel(r'$\mathcal{L_{\text{MSE}}}$', fontweight='bold', fontsize=16)
+    plt.ylabel(r'$\mathcal{L}_{\mathrm{MSE}}$', fontweight='bold', fontsize=16)
     plt.legend(fontsize=12)
     plt.yscale('log')  
     plt.tight_layout()
@@ -245,7 +249,7 @@ def plot_loss_curves_pinn(config, pinn_losses_dict):
     savefig(save_path, pad_inches = 0.2)
 
 
-### This section of the code optimizes the PINN architecture based on the val loss
+"""### This section of the code optimizes the PINN architecture based on the val loss
 def generate_config_(config, hidden_sizes, activation_fn):
     return {
         'pinn_model': {
@@ -409,3 +413,4 @@ def save_config_(config, filename='pinn_opt_config.yaml'):
     with open(file_path, 'w') as f:
         yaml.dump(python_config, f, Dumper=CompactDumper, default_flow_style=False)
     
+"""

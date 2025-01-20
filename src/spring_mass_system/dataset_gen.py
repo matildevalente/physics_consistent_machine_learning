@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from src.spring_mass_system.utils import compute_total_energy, rk4_step, set_seed, rk8_step
+from src.spring_mass_system.utils import compute_total_energy, rk4_step, set_seed
 
 
 # Function to generate random initial conditions with energy check

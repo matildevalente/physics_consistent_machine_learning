@@ -12,15 +12,14 @@ from typing import Dict, Any, Tuple
 from src.spring_mass_system.utils import set_seed, get_predicted_trajectory, get_target_trajectory, load_checkpoint, compute_parameters
 from src.spring_mass_system.dataset_gen import generate_dataset
 from src.spring_mass_system.data_prep import preprocess_data
-#from src.spring_mass_system.nn import NeuralNetwork, plot_loss_curves_
 from src.spring_mass_system.nn import NeuralNetwork, train_nn, plot_loss_curves_nn, optimize_architecture_nn
-from src.spring_mass_system.pinn import PhysicsInformedNN, train_pinn, plot_loss_curves_pinn, optimize_pinn_architecture
+from src.spring_mass_system.pinn import PhysicsInformedNN, train_pinn, plot_loss_curves_pinn #, optimize_pinn_architecture
 from src.spring_mass_system.projection import get_inverse_covariance_matrix, get_projection_df #get_projected_trajectory, 
 from src.spring_mass_system.plotter.Figure_2b import plot_predicted_trajectory_vs_target
 from src.spring_mass_system.plotter.Figure_2c import plot_predicted_energies_vs_target
 from src.spring_mass_system.plotter.Figure_2d import plot_bar_plot
 from src.spring_mass_system.plotter.Figure_3 import plot_several_initial_conditions
-#from src.spring_mass_system.plotter.Extra_Figure_2 import get_trained_pinn_w_optimal_architecture
+from src.spring_mass_system.plotter.Extra_Figure_1 import plot_pinn_errors_vs_lambda
 
 # Load the configuration file
 def load_config(config_path):
@@ -136,13 +135,13 @@ def main():
 
         # /// 4. TRAIN THE PHYSICS-INFORMED NEURAL NETWORK (PINN) ///
         set_seed(42)
+        plot_pinn_errors_vs_lambda(config, preprocessed_data, N_lambdas = 25)
         pinn_model, pinn_losses = get_trained_pinn(config, preprocessed_data, checkpoint_dir=os.path.join('output', 'spring_mass_system', 'checkpoints', 'pinn'))
         
         # /// 5. PLOT LOSS CURVES FOR THE NN AND PINN ///
         plot_loss_curves(config, nn_losses, pinn_losses)
 
         # /// 6. EVALUATE ONE INITIAL CONDITION (Fig. 2) ///
-        initial_state = [-0.15669316, -2.1848829,   0.09043302, -0.16476968]
         initial_state = [-0.16, -2.18,   0.09, -0.16]
         n_time_steps  = 165
         df_target = get_target_trajectory(config, n_time_steps = n_time_steps, initial_state = torch.tensor(initial_state))
@@ -163,7 +162,6 @@ def main():
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
         raise
-
 
 
 if __name__ == "__main__":

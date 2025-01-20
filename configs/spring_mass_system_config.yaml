@@ -25,7 +25,7 @@ nn_model:
 
 pinn_model:
   RETRAIN_MODEL: False
-  OPTIMIZE_ARC: False
+  RUN_LAMBDA_STUDY: False
   input_size: 4
   output_size: 4
   hidden_sizes: [22, 98, 9] 
@@ -37,11 +37,11 @@ pinn_model:
 
 plotting:
   output_dir: "src/spring_mass_system/figures/"
-  PLOT_LOSS_CURVES: False
+  PLOT_LOSS_CURVES: True
   PRINT_LOSS_VALUES: True
 
 fig_3_options:
-  rerun_results: True
+  rerun_results: False
   output_dir: "output/spring_mass_system/checkpoints/fig_3/"
 
 

@@ -7,6 +7,8 @@ import seaborn as sns
 from tqdm import tqdm
 import matplotlib.ticker as mticker
 import matplotlib as mpl
+import pandas as pd
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
@@ -174,7 +176,7 @@ def _normalize_trajectory(df, scaler_X):
     return df_norm
 
 # For each initial state compute the improvement rate of the projection
-def _analyse_proj_improvement_rate(mape_dict_accumulated, rmse_dict_accumulated, test_initial_states, N_initial_conditions, scaler_X):
+def _analyse_proj_improvement_rate(config, mape_dict_accumulated, rmse_dict_accumulated, test_initial_states, N_initial_conditions, scaler_X):
     # study complementarity between PINN and Proj
     pairs_to_compare = [
         ["NN", "proj_NN_I", "NN", "I"], 
@@ -257,14 +259,13 @@ def _analyse_proj_improvement_rate(mape_dict_accumulated, rmse_dict_accumulated,
     df_improvement_rates= pd.DataFrame(rows, columns=columns)
 
     # save results to local dir in .csv format
-    file_path = "output/spring_mass_system/proj_improvement_rates/Table2.csv"
-    directory = os.path.dirname(file_path)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    df_improvement_rates.to_csv(file_path, index=False)
+    output_dir = config['plotting']['output_dir'] + "several_initial_conditions/"
+    os.makedirs(output_dir, exist_ok=True)
+    save_path = os.path.join(output_dir, f"proj_improvement_rates.csv")   
+    df_improvement_rates.to_csv(save_path, index=False)
     
-    best_initial_condition_ = scaler_X.inverse_transform(best_initial_condition.reshape(1, -1))
-    print("Best Initial Condition: ", best_initial_condition_)
+    #best_initial_condition_ = scaler_X.inverse_transform(best_initial_condition.reshape(1, -1))
+    #print("Best Initial Condition: ", best_initial_condition_)
 
 # Save the results that will be added to the plot
 def save_results(mape_dict, rmse_dict, output_dir):
@@ -309,15 +310,10 @@ def plot_several_initial_conditions(config, preprocessed_data, nn_model, pinn_mo
         mape_dict_accumulated, rmse_dict_accumulated = load_results(config['fig_3_options']['output_dir'])
     
     # Analyse the improvement rates in the error metrics among the models
-    _analyse_proj_improvement_rate(mape_dict_accumulated, rmse_dict_accumulated, test_initial_states, N_initial_conditions, scaler_X)
+    _analyse_proj_improvement_rate(config, mape_dict_accumulated, rmse_dict_accumulated, test_initial_states, N_initial_conditions, scaler_X)
     
     # Create the violin plot
-    _plot_violin_v2(rmse_dict_accumulated, mape_dict_accumulated, config, models, metrics_names, state_variables)
-
-
-
-
-
+    _plot_violin(rmse_dict_accumulated, mape_dict_accumulated, config, models, metrics_names, state_variables)
 
 
 ####### ----------------------------
@@ -366,7 +362,7 @@ def  _add_mean_and_errorbar(df_plot, df_rows, metrics_names, models, axs, row, c
 
     return df_plot, df_rows
 
-# function that plots the results
+"""# function that plots the results
 def _plot_violin(rmse_dict_accumulated, mape_dict_accumulated, config, models, metrics_names, state_variables):
     
 
@@ -531,8 +527,10 @@ def _plot_violin(rmse_dict_accumulated, mape_dict_accumulated, config, models, m
     save_path = os.path.join(output_dir, f"Figure_2")
     plt.savefig('{}.pdf'.format(save_path), bbox_inches='tight', pad_inches=0.2)
 
+
+"""
 # function that plots the results
-def _plot_violin_v2(rmse_dict_accumulated, mape_dict_accumulated, config, models, metrics_names, state_variables):
+def _plot_violin(rmse_dict_accumulated, mape_dict_accumulated, config, models, metrics_names, state_variables):
     
 
     # List to map each column to the corresponding subplot position
@@ -597,12 +595,12 @@ def _plot_violin_v2(rmse_dict_accumulated, mape_dict_accumulated, config, models
     
     # create dataframe & save results to local dir in .csv format
     df_table1 = pd.DataFrame(df_rows, columns=columns_table)
-    file_path = "output/spring_mass_system/proj_improvement_rates/Table1.csv"
-    directory = os.path.dirname(file_path)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    df_table1.to_csv(file_path, index=False)
-    
+    output_dir = config['plotting']['output_dir'] + "several_initial_conditions/"
+    os.makedirs(output_dir, exist_ok=True)
+    save_path = os.path.join(output_dir, f"errors_norm_trajectories_Figure_3.csv")   
+    df_table1.to_csv(save_path, index=False)
+
+
     # remove ylabels and yticks to simplify plot
     for row, col in [[0, 1], [1, 1]]:
         axs[row][col].set_ylabel(None)
@@ -657,9 +655,13 @@ def _plot_violin_v2(rmse_dict_accumulated, mape_dict_accumulated, config, models
 
 
     # Save figure
-    output_dir = config['plotting']['output_dir']
+    output_dir = config['plotting']['output_dir'] + "several_initial_conditions/"
     os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, f"Figure_3")
-    plt.savefig('{}.pdf'.format(save_path), bbox_inches='tight', pad_inches=0.2)
+    savefig(save_path, pad_inches=0.2)
+    #plt.savefig('{}.pdf'.format(save_path),bbox_inches='tight' , pad_inches=0.2)
+
+
+
 
 

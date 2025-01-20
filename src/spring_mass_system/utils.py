@@ -51,16 +51,6 @@ def savefig(filename, pad_inches, crop=True):
             plt.savefig('{}.pdf'.format(filename), bbox_inches='tight', pad_inches=pad_inches)
         else:
             plt.savefig('{}.pdf'.format(filename))
-        
-        # Try saving in EPS format with error handling
-        try:
-            if crop:
-                plt.savefig('{}.eps'.format(filename), bbox_inches='tight', pad_inches=pad_inches)
-            else:
-                plt.savefig('{}.eps'.format(filename))
-        except Exception as e:
-            logging.error(f"An error occurred while saving the EPS file: {e}")
-            print(f"Could not save the EPS file due to an error: {e}")
             
     except Exception as e:
         logging.error(f"An error occurred while saving the file: {e}")
@@ -130,7 +120,7 @@ def rk4_step(config, y, dt):
     f4 = system_dynamics(config, y + np.array(f3) * dt)
     return y + dt * (np.array(f1) + 2 * np.array(f2) + 2 * np.array(f3) + np.array(f4)) / 6
 
-# RK8 integration step function
+"""# RK8 integration step function
 def rk8_step(config, y, dt):
     k1 = dt * system_dynamics(config, y)
     k2 = dt * system_dynamics(config, y + k1 * 4/27)
@@ -146,7 +136,7 @@ def rk8_step(config, y, dt):
     k12 = dt * system_dynamics(config, y + (-1/54 * k1 + 1/6 * k7 - 1/18 * k8 - 1/54 * k9 + 1/18 * k10))
     k13 = dt * system_dynamics(config, y + (1/14 * k1 + 1/14 * k9 + 4/7 * k11 - 1/7 * k12))
 
-    return y + (41*k1 + 216*k8 + 27*k9 + 272*k10 + 27*k11 + 216*k12 + 41*k13) / 840
+    return y + (41*k1 + 216*k8 + 27*k9 + 272*k10 + 27*k11 + 216*k12 + 41*k13) / 840"""
 
 # Set seed to garantee reproduc.. of results
 def set_seed(seed):
