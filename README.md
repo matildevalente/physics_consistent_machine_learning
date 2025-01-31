@@ -53,9 +53,9 @@ python main_ltp_system.py
 ```
 
 ## Requirements
-Run the requirements file:
+The required dependencies are listed in `requirements.txt`. Install them using pip:
 ```bash
-python requirements.py
+pip install -r requirements.txt
 ```
 
 ## Contact
