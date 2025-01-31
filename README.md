@@ -60,6 +60,5 @@ python requirements.py
 
 ## Contact
 Contact us through matilde.valente@tecnico.ulisboa.pt
-```
 
 
