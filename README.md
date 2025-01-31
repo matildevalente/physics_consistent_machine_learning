@@ -52,6 +52,12 @@ This repository implements a physics-based simulation and machine learning predi
 python main_ltp_system.py
 ```
 
+## Requirements
+Run the requirements file:
+```bash
+python requirements.py
+```
+
 ## Contact
 Contact us through matilde.valente@tecnico.ulisboa.pt
 ```
