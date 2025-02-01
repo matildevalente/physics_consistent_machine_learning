@@ -49,11 +49,11 @@ def main():
         apply_eda(config, data_preprocessing_info, large_dataset.y)
         
         # /// 3. TRAIN THE NEURAL NETWORK (NN) ///
-        nn_models, nn_losses_dict, device_nn = get_trained_nn(config, data_preprocessing_info, training_file, dataset_size = 1000)
+        nn_models, nn_losses_dict, _ = get_trained_nn(config, data_preprocessing_info, training_file, dataset_size = 1000)
         loss_curves(config['nn_model'], config['plotting'], nn_losses_dict)
     
         # /// 4. TRAIN THE PHYSICS-INFORMED NEURAL NETWORK (PINN) ///
-        pinn_models, pinn_losses_dict, device_pinn = get_trained_pinn(config, data_preprocessing_info, training_file, dataset_size = 1000)
+        pinn_models, pinn_losses_dict, _ = get_trained_pinn(config, data_preprocessing_info, training_file, dataset_size = 1000)
         loss_curves(config['pinn_model'], config['plotting'], pinn_losses_dict)
 
         # /// 5. TESTSET RESULTS OF NN, PINN and PROJECTION APPLIED TO BOTH MODELS PREDICTIONS /// 
@@ -77,7 +77,7 @@ def main():
             'n_samples': 1,
             'num_epochs': 1000,
             'hidden_sizes': None,
-            'RETRAIN_MODEL': True,  # False
+            'RETRAIN_MODEL': False,  
             'n_bootstrap_models': 1, 
             'PRINT_LOSS_VALUES': False,
             'w_matrix': torch.eye(17),
@@ -107,12 +107,12 @@ def main():
         
         # /// 8. NN and NN_Proj errors as a func of the dataset size + approximate loki computation time /// 
         options['n_samples']     = 20
-        options['RETRAIN_MODEL'] = True   # True
-        options['hidden_sizes']  = [50,50] # [451, 315, 498, 262]
+        options['RETRAIN_MODEL'] = False   # True
+        options['hidden_sizes']  = [50,50] 
         options['output_dir']    = 'src/ltp_system/figures/Figures_6d/'
         options['checkpoints_dir'] = f'output/ltp_system/checkpoints/different_datasets/'
         # Get the list of files to analyze
-        dataset_sizes = [300, 400, 500, 600, 700, 800, 900, 1000]
+        dataset_sizes = [20, 50, 100, 200, 400, 600, 800, 1000, 1500, 2000, 2500]#[300, 400, 500, 600, 700, 800, 900, 1000, 3000]
         df_results_6e_all, df_results_6e_specific = run_experiment_6e(config, large_dataset_path, dataset_sizes, options)
         Figure_6e_mean_all_outputs(options, df_results_6e_all)
         Figure_6e_specific_outputs(options, df_results_6e_all, df_results_6e_specific, output_labels)
