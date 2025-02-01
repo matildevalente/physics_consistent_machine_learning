@@ -199,8 +199,6 @@ def get_trained_bootstraped_models(config_model, config_plotting, preprocessed_d
     models_list = []
     losses_train_physics, losses_train_data, losses_train_total, losses_val = [], [], [], []
 
-    print(f"Training Dataset Size: {len(train_data)}")
-
     start_time = time.time()
   
     for idx in tqdm(range(n_bootstrap_models), desc=f"Training Bootstraped {model_name}"):

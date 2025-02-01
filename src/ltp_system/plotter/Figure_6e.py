@@ -1,7 +1,9 @@
 import os
+import io
 import pickle
 import torch
 import random
+import contextlib
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -54,7 +56,6 @@ def load_data(test_filename, data_preprocessing_info):
  
     return normalized_inputs, normalized_targets
 
-
 # create a configuration file for the chosen architecture
 def generate_config_(config, options):
     return {
@@ -93,7 +94,9 @@ def get_trained_nn(options, config, data_preprocessing_info, idx_dataset, idx_sa
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     if options['RETRAIN_MODEL']:
-        nn_models, nn_losses_dict, training_time = get_trained_bootstraped_models(config['nn_model'], config['plotting'], data_preprocessing_info, nn.MSELoss(), checkpoint_dir, device, val_loader, train_data, seed = 'default')
+        with open(os.devnull, 'w') as devnull:
+            with contextlib.redirect_stdout(devnull), contextlib.redirect_stderr(devnull):
+                nn_models, nn_losses_dict, training_time = get_trained_bootstraped_models(config['nn_model'], config['plotting'], data_preprocessing_info, nn.MSELoss(), checkpoint_dir, device, val_loader, train_data, seed = 'default')
 
         return nn_models, nn_losses_dict, device, training_time
     else:
@@ -269,6 +272,7 @@ def run_experiment_6e(config_original, large_dataset_path, dataset_sizes, option
         specific_outputs_rows = []
 
         # loop over the dataset sizes to generate
+        print(f"Dataset Sizes (split 80-10-10): {dataset_sizes}")
         for idx_dataset, dataset_size in enumerate(tqdm(dataset_sizes, desc="Evaluating Different Datasets")):
             
             # initialize the results for the mean of all outputs
@@ -451,9 +455,9 @@ def Figure_6e_mean_all_outputs(options, df):
     ax1.set_xlabel('Dataset Size', fontsize=24)
     ax1.set_ylabel('RMSE', fontsize=24, labelpad=10)
     ax1.set_yscale('log')
-    ax1.set_ylim(27e-3, 53e-3) 
-    ax1.set_yticks([30e-3, 40e-3, 50e-3])
-    ax1.set_yticklabels(['30', '40', '50'])
+    ax1.set_ylim(15e-3, 250e-3) 
+    ax1.set_yticks([25e-3, 50e-3, 100e-3, 200e-3])
+    ax1.set_yticklabels(['25','50', '100', '200'])
         # Plot lines without error bars
     ax1.plot(df['dataset_sizes'], df['nn_rmses'], '-o', color=models_parameters['NN']['color'], label='NN')
     ax1.plot(df['dataset_sizes'], df['proj_rmses'],'-o', color=models_parameters['proj_nn']['color'],linestyle='--', label='NN projection')
@@ -486,6 +490,42 @@ def Figure_6e_mean_all_outputs(options, df):
     save_path = os.path.join(output_dir, "mean_all_outputs_rmse.pdf")
     fig.savefig(save_path, pad_inches=0.2, format='pdf', dpi=300, bbox_inches='tight')
 
+
+def get_min_max_bounds(df_specific, metric, log_scale):
+    # For proj_mapes
+    proj_min = df_specific['proj_' + metric].min()
+    proj_max = df_specific['proj_' + metric].max()
+
+    # For nn_mapes
+    nn_min = df_specific['nn_' + metric].min()
+    nn_max = df_specific['nn_' + metric].max()
+
+    # Or to get the overall min and max across both columns
+    overall_min = min(proj_min, nn_min)
+    overall_max = max(proj_max, nn_max)
+
+    if log_scale:
+        # For log scale, we use multiplicative buffer instead of additive
+        buffer_factor = 1.1  # 10% buffer
+        y_min = overall_min / buffer_factor
+        y_max = overall_max * buffer_factor
+    else:
+        # For linear scale (e.g., MAPE), use additive buffer
+        initial_buffer = (overall_max - overall_min) * 0.1
+        buffer = initial_buffer
+
+        # Reduce buffer if y_min would be negative or zero
+        while overall_min - buffer <= 0:
+            buffer *= 0.5  # Reduce buffer by half each time
+
+        y_min = overall_min - buffer
+        y_max = overall_max + buffer
+
+    return y_min, y_max
+
+    return y_min, y_max
+
+
 # Plot the results for the specific outputs
 def Figure_6e_specific_outputs(options, df_all, df_specific, output_features_names):
     # Columns: architecture, num_params, output_feature, mapes_nn, mapes_proj, rmses_nn, rmses_proj
@@ -498,8 +538,12 @@ def Figure_6e_specific_outputs(options, df_all, df_specific, output_features_nam
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(16, 4.5*n_rows))
     axes = axes.flatten()
     plot_idx = 0
-    y_pos = [0.45, 0.35, 0.35]
 
+    # get the min and max bounds for the y axis
+    y_rmse_min, y_rmse_max = get_min_max_bounds(df_specific, metric = 'rmses', log_scale = True)
+    y_mape_min, y_mape_max = get_min_max_bounds(df_specific, metric = 'mapes', log_scale = True)
+    
+    # loop over each specific output to plot
     for output_idx in df_specific['output_feature'].unique():
         # Get data for specific output
         ax = axes[plot_idx]
@@ -529,9 +573,9 @@ def Figure_6e_specific_outputs(options, df_all, df_specific, output_features_nam
         ax.set_title(f'{output_features_names[output_idx]}', fontsize=28, pad=15, fontweight='bold')
         
         # Set y-axis range and ticks
-        ax.set_ylim(1.2, 15)
-        ax.set_yticks([2, 4, 8])  # Remove e0 since these are already the actual values
-        ax.set_yticklabels(['2', '4', '8'])
+        ax.set_ylim(y_mape_min, y_mape_max)
+        ax.set_yticks([2, 8, 30])  # Remove e0 since these are already the actual values
+        ax.set_yticklabels(['2', '8', '30'])
         ax.minorticks_off()
         plot_idx += 1
     
@@ -586,12 +630,12 @@ def Figure_6e_specific_outputs(options, df_all, df_specific, output_features_nam
         ax.set_title(f'{output_features_names[output_idx]}', fontsize=28, pad=15)
         
         # Set y-axis range and ticks
-        ax.set_ylim(5e-3, 50e-3)
-        ax.set_yticks([10e-3, 20e-3, 40e-3])
-        ax.set_yticklabels(['10', '20', '40'])
+        ax.set_ylim(y_rmse_min, y_rmse_max)
+        ax.set_yticks([5e-3, 20e-3, 80e-3])
+        ax.set_yticklabels(['5', '20', '80'])
         ax.minorticks_off()
         # Adjust y position based on plot index to ensure consistent placement
-        ax.text(0, 56e-3, r'($\times10^{-3}$)', transform=ax.get_yaxis_transform(), fontsize=20)
+        ax.text(0, 280e-3, r'($\times10^{-3}$)', transform=ax.get_yaxis_transform(), fontsize=20)
         
         plot_idx += 1
     
