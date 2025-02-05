@@ -52,6 +52,8 @@ pinn_model:
 
 
 plotting:
+  RERUN_DATA_SCALING_STUDY: False
+  RERUN_ABLATION_STUDY: False
   output_dir: "src/ltp_system/figures/"
   PLOT_LOSS_CURVES: True
   PRINT_LOSS_VALUES: False
