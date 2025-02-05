@@ -1,22 +1,14 @@
 import os
-import sys
-import math
 import copy
 import time
 import torch 
 import random
 import numpy as np
-import casadi as ca
-import pandas as pd
 from tqdm import tqdm
 import torch.nn as nn
-from io import StringIO
-from itertools import cycle
-import torch.optim as optim
 device = torch.device("cpu")
 from functools import partial
 import torch.nn.functional as F
-import matplotlib.pyplot as plt
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from src.ltp_system.utils import set_seed
@@ -29,7 +21,6 @@ class NeuralNetwork(nn.Module):
     def __init__(self, config_model):
         super(NeuralNetwork, self).__init__()
         self.hidden_size_arr = config_model['hidden_sizes']
-        #self.activation_functions = config_model['activation_fns']
         self.activation_functions = self._parse_activation_functions(config_model['activation_fns'])
         self.lr = config_model['learning_rate']
         self.batch_size = config_model['batch_size']
@@ -63,81 +54,6 @@ class NeuralNetwork(nn.Module):
         }
         
         return [activation_map.get(act.lower(), F.relu) for act in activation_strings]
-
-    """def optimize_architecture(self, config_model, val_loader, train_loader, preprocessed_data):
-
-        def get_random_architectures_(config_model):
-            hidden_size_arr = []
-            base_architecture = [10, 10,10]
-            num_arquitectures = config_model['num_arquitectures']
-            
-            # Randomly generate NN architectures 
-            for _ in range(num_arquitectures):
-                num_positions = random.randint(3, 7)  
-                new_architecture = [random.randint(3, 500) for _ in range(num_positions)]
-            
-                if base_architecture not in hidden_size_arr:
-                    hidden_size_arr.append(base_architecture)
-                
-                hidden_size_arr.append(new_architecture)
-
-            # Sort architectures by the total number of neurons (complexity)
-            hidden_size_arr = sorted(hidden_size_arr, key=lambda x: sum(x))
-
-            return hidden_size_arr
-
-        def generate_config_(config_model, hidden_sizes, activation_fn):
-            return {
-                'RETRAIN_MODEL': config_model['RETRAIN_MODEL'],
-                'input_size': config_model['input_size'],
-                'hidden_sizes': hidden_sizes,
-                'output_size': config_model['output_size'],
-                'num_epochs': config_model['num_epochs'],
-                'learning_rate': config_model['learning_rate'],
-                'activation_fn': activation_fn,
-                'loss_physics_weight': config_model['loss_physics_weight'],
-            }
-            
-        random_architectures = get_random_architectures_(config_model)
-
-        df_ = pd.DataFrame(columns=['architecture', 'activ_func', 'val_loss'])
-        rows = []
-
-        for architecture in random_architectures:
-
-            set_seed(42)
-
-            # get activation functions
-            activation_fns = random.choices(self.activation_functions, k=len(architecture))    
-
-            # Create a new instance of the neural network
-            config_temp = generate_config_(config_model, architecture, activation_fns)
-            model = PhysicsAwareNet(config_temp).to(device)
-            model.to(torch.double) 
-
-            # Define the loss function and optimizer
-            optimizer = torch.optim.Adam(model.parameters(), lr=config_temp['learning_rate'])
-            
-            # 4. PLATEAU BASED STOPPING - Define the scheduler and monitor validation loss
-            scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=10, verbose=True)
-                
-            # 5. Train Network Without Physical Bias
-            _, _, _, val_losses, _, _ = train_PINN(model, optimizer, train_loader, val_loader, scheduler, preprocessed_data)
-
-            new_row = {
-                "architecture": architecture,
-                "activ_func": activation_fns,
-                "val_loss": val_losses[-1]
-            }
-            rows.append(new_row)
-
-        df_ = pd.DataFrame(rows, columns=['architecture', 'activ_func', 'val_loss'])
-
-        # Find the index of the minimum val_loss
-        min_loss_index = df_['val_loss'].idxmin()
-        best_row = df_.loc[min_loss_index]
-
-        return best_row"""
 
     def predict(self, x):
         # call the forward method to generate predictions
@@ -186,14 +102,17 @@ def aggregate_losses_(losses_train, losses_train_physics, losses_train_data, los
     return losses_dict
 
 # Loop over each model and train all the bootstraped models
-def get_trained_bootstraped_models(config_model, config_plotting, preprocessed_data, loss_fn, checkpoint_dir, device, val_loader, train_data, seed):
+def get_trained_bootstraped_models(config_model, config_plotting, preprocessed_data, loss_fn, checkpoint_dir, device, val_loader, train_data, seed, print_messages = True):
     
     if config_model['lambda_physics'] == [0,0,0]:
         model_name = "NN"
     else:
         model_name = "PINN"
-
+    
     n_bootstrap_models = config_model['n_bootstrap_models']
+
+    if print_messages:
+        print(f"\nInitiating Training of {n_bootstrap_models} bootstraped {model_name} models on {len(train_data)} training points ...")
 
     # Plot error as a function of seed
     models_list = []
@@ -236,9 +155,13 @@ def get_trained_bootstraped_models(config_model, config_plotting, preprocessed_d
     end_time = time.time()
     training_time = end_time - start_time
     losses_dict_aggregated = aggregate_losses_(losses_train_total, losses_train_physics, losses_train_data, losses_val)
-    save_checkpoints(models_list, losses_dict_aggregated, checkpoint_dir, config_model, training_time )
+    save_checkpoints(models_list, losses_dict_aggregated, checkpoint_dir, config_model, training_time, print_messages)
+    
+    if print_messages:
+        print("Model training complete.\n\n")
 
     return models_list, losses_dict_aggregated, training_time
+
 
 def train_model(config_plotting, config_model, model, preprocessed_data, loss_fn, optimizer, device, checkpoint_dir, scheduler, train_loader, val_loader, print_every=10):
     model.to(device)
@@ -394,6 +317,7 @@ def _compute_pinn_loss(config_model, input_norm, y_pred_norm, y_target_norm, pre
         'loss_total_pinn': loss_total_pinn
     }
 
+
 # --------------------------------------------------------------- Training loop
 def _run_epoch_train(config_model, model, train_loader, loss_fn, optimizer, device, preprocessed_data):
     epoch_loss_total = 0.0
@@ -427,6 +351,7 @@ def _run_epoch_train(config_model, model, train_loader, loss_fn, optimizer, devi
         'train_weighted_data_loss': epoch_loss_data
     }
 
+
 # --------------------------------------------------------------- Validation loop
 def _run_epoch_val(model, val_loader, loss_fn, device, scheduler):
 
@@ -452,6 +377,7 @@ def _run_epoch_val(model, val_loader, loss_fn, device, scheduler):
 
     return total_val_loss
 
+
 # --------------------------------------------------------------- Print loss as a func of epochs
 def _print_epoch_summary(epoch, train_loss_dict, val_loss):
     def _percentage(part, whole):
@@ -468,9 +394,8 @@ def _print_epoch_summary(epoch, train_loss_dict, val_loss):
     )
 
 
-
 # --------------------------------------------------------------------------- Save and load checkpoints of the num_models from a local directory
-def save_checkpoints(models, losses_dict, save_dir, config_model, training_time):
+def save_checkpoints(models, losses_dict, save_dir, config_model, training_time, print_messages = True):
     os.makedirs(save_dir, exist_ok=True)
     
     # Save the aggregated losses separately
@@ -508,9 +433,11 @@ def save_checkpoints(models, losses_dict, save_dir, config_model, training_time)
         torch.save(checkpoint_2, checkpoint_path)
         #print(f"Model {i} saved with hidden sizes and activation function.")
 
-    #print(f"All checkpoints and aggregated losses saved in {save_dir}")
+    if print_messages:
+        print(f"All checkpoints and aggregated losses saved in {save_dir}")
 
-def load_checkpoints(config_model, model_class, save_dir):
+
+def load_checkpoints(config_model, model_class, save_dir, print_messages = True):
     loaded_models = []
     num_models = config_model['n_bootstrap_models']
 
@@ -544,8 +471,9 @@ def load_checkpoints(config_model, model_class, save_dir):
         else:
             print(f"Warning: Checkpoint for model {i} not found.")
 
+    if print_messages:
+        print(f"Loaded {len(loaded_models)} models.")
     
-    #print(f"Loaded {len(loaded_models)} models.")
     return loaded_models, loaded_losses, hidden_sizes, activation_fns, training_time
 
 
@@ -589,7 +517,6 @@ def stop_training(val_losses, train_losses, patience, alpha):
     return (gl / pk) > alpha if pk > 0 else gl > 0
 
 
-
 # --------------------------------------------------------------------------- Methods to obtain aggregated predictions (mean) and uncertainty 
 # Function to evaluate NN model
 def get_average_predictions(networks, inputs_norm):
@@ -611,6 +538,7 @@ def get_average_predictions(networks, inputs_norm):
   avg_predictions /= num_networks
 
   return avg_predictions
+
 
 # Function to get std/sqrt(N) in the aggregated models predictions
 def get_predictive_uncertainty(networks, inputs_norm):

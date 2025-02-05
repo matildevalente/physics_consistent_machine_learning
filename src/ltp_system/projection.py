@@ -28,7 +28,6 @@ from scipy.stats import shapiro
 
 from src.ltp_system.data_prep import LoadDataset
 from src.ltp_system.pinn_nn import get_average_predictions
-from src.ltp_system.plotter.normality import plot_output_gaussians
 
 
 # compute the 
@@ -699,95 +698,4 @@ def get_average_predictions_projected(y_pred, X_test_norm, data_preprocessed, co
       pred.append(predictions_projected)
   
   return pred
-
-
-
-####################################################################################################
-################################## FUNCTIONS USED IN W MATRIX STUDY  ###############################
-####################################################################################################
-
-# Perform Shapiro test on the differences between the model predictions and the test targets
-def perform_shapiro_test(config, all_differences):
-
-    # Compute the size of the training set
-    N = all_differences.shape[0]
-    len_outputs = len(all_differences[0]) 
-    variable_names = config['dataset_generation']['output_features']
-
-    print("N = ", N)
-    print("len_outputs = ", len_outputs)
-
-    # For the Shapiro test to work the dataset size must be < 5000
-    if(N > 5000):
-        caped_size = 1000
-        all_differences_caped = all_differences[:caped_size, :]
-    else:
-        all_differences_caped = all_differences
-    
-    # Extract differences and compute statistics
-    diff_arrays = [np.array(all_differences_caped[:, i]) for i in range(len_outputs)]
-    shapiro_results = [shapiro(diff) for diff in diff_arrays]
-    diff_means = [np.mean(diff) for diff in diff_arrays]
-
-    # Print results
-    for i, var_name in enumerate(variable_names):
-        stat, p_value = shapiro_results[i]
-        mean = diff_means[i]
-        print(f'{var_name}_diff: Statistics={stat:.2f}, p-value={p_value:.2e}, mean={mean:.2e}')
-
-    print(len(diff_arrays[0]))
-    plot_output_gaussians(config, *diff_arrays)
-
-# Compute the covariance matrix of the differences between the model predictions and the test targets
-def compute_covariance(all_differences):
-    N = all_differences.shape[0]
-    
-    # Compute covariances: Cov(x,y) = SUM { (x - x_mean) (y - y_mean) } / (N-1) 
-    len_outputs = len(all_differences[0]) 
-    covariance_mtx = np.zeros((len_outputs, len_outputs))
-
-    # Compute the mean value for the differences of each variable
-    diff_means = np.mean(all_differences, axis=0)
-
-    # Compute the covariances using nested loops
-    for i in range(len_outputs):
-        for j in range(len_outputs):
-            covariance_mtx[i, j] = np.sum((all_differences[:, i] - diff_means[i]) * 
-                                          (all_differences[:, j] - diff_means[j])) / (N - 1)
-
-    return torch.tensor(covariance_mtx)
-
-# Compute inverse of covariance matrix on the train set
-def get_inverse_covariance_matrix(config, preprocessed_data, nn_models, device_nn): 
-  config_model = config['nn_model']
-  train_loader = torch.utils.data.DataLoader(preprocessed_data.train_data, batch_size=config_model['batch_size'], shuffle=True)
-  differences = []
-  
-  with torch.no_grad():
-    for inputs, targets in train_loader:
-      inputs, targets = inputs.to(device), targets.to(device)
-      outputs = get_average_predictions(nn_models, inputs)
-      diff = outputs - targets  # This is (f - p)
-      differences.append(diff)
-    
-    # Concatenate all differences
-    all_differences_train_loader = np.array(torch.cat(differences, dim=0))
-    perform_shapiro_test(config, all_differences_train_loader)
-    covariance_mtx_train_loader = compute_covariance(all_differences_train_loader)
-    inverse_covariance_mtx_train_loader = torch.inverse(covariance_mtx_train_loader)  
-
-    
-    return inverse_covariance_mtx_train_loader
-
-# Print a matrix with 3 decimal places for each element and aligned columns
-def print_matrix(matrix):
-  # Convert tensor to numpy array for easier printing
-  matrix_np = matrix.numpy()
-
-  # Print the matrix with 3 decimal places for each element and aligned columns
-  for row in matrix_np:
-      formatted_row = [f"{item:8.3f}" for item in row]  # Each value will take up 8 characters, aligned by decimal
-      print(" ".join(formatted_row))
-
-   
 

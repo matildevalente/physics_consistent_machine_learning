@@ -14,11 +14,20 @@ logger = logging.getLogger(__name__)
 
 
 # Load the configuration file
-def load_config(config_path):
+def load_config(retrain_flag, config_path):
     
     # Load the configuration file
     with open(config_path, 'r') as f:
-        return yaml.safe_load(f)
+        config = yaml.safe_load(f)
+
+        if(retrain_flag is not None):
+
+            # overwrite the manually defined retraining configurations with the user input
+            config['nn_model']['RETRAIN_MODEL'] = retrain_flag
+            config['pinn_model']['RETRAIN_MODEL'] = retrain_flag
+
+        return config
+
 
 
 def figsize(scale, nplots = 1):
@@ -96,9 +105,12 @@ def load_dataset(config, dataset_dir):
         raise FileNotFoundError("Dataset file not found. Please generate the dataset or provide the correct file path.")
 
 # 
-def select_random_rows(input_file, dataset_size, seed, sampled_dataset = 'data/ltp_system/temp.txt'):
+def select_random_rows(input_file, dataset_size, seed, sampled_dataset = 'data/ltp_system/temp.txt', print_messages = True):
 
     try:
+        if(print_messages):
+            print(f"\nSampling {dataset_size} points from large dataset ...")
+
         # Set the random seed to ensure different samples for different seeds
         random.seed(seed)
         
@@ -130,9 +142,8 @@ def select_random_rows(input_file, dataset_size, seed, sampled_dataset = 'data/l
     except Exception as e:
         return False, f"An unexpected error occurred: {str(e)}"
 
-
 #
-def split_dataset(input_file, n_testing_points, output_dir=None, testing_file=None, training_file=None):
+def sample_dataset(input_file, n_testing_points, output_dir=None, testing_file=None, training_file=None):
     try:
         # Read all lines from the input file
         with open(input_file, 'r') as f:
@@ -163,10 +174,6 @@ def split_dataset(input_file, n_testing_points, output_dir=None, testing_file=No
                     test_f.write(line)
                 else:
                     train_f.write(line)
-
-        #print(f"Dataset split successfully:")
-        #print(f"- Testing data ({n_testing_points} points) saved to: {testing_file}")
-        #print(f"- Training data ({total_lines - n_testing_points} points) saved to: {training_file}")
 
         # Return the paths of the created files
         return testing_file, training_file
