@@ -1,4 +1,4 @@
-architectures,num_params,mapes_nn,uncertanties_mape_nn,mapes_proj,uncertanties_mape_proj,rmses_nn, uncertanties_rmse_nn,rmses_proj,uncertanties_rmse_proj
+architectures,num_params,nn_mapes,uncertanties_mape_nn,proj_mapes,uncertanties_mape_proj,nn_rmses, uncertanties_rmse_nn,proj_rmses,uncertanties_rmse_proj
 "[1, 1]",23,298.7401599782791,,277.0878403424321,,0.26065266899485706,,0.23014049100691175,
 "[2, 2]",48,234.21683237889818,,217.0769150260363,,0.2237208514121033,,0.20001819932567097,
 "[4, 4]",104,193.34629789325365,,189.86345495635874,,0.16207947754448795,,0.15447866101163701,
