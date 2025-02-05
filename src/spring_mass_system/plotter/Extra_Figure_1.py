@@ -1,22 +1,22 @@
 import os
-import copy
-import torch
-from tqdm import tqdm
-import contextlib
 import io
 import sys
+import copy
+import torch
+import contextlib
 import numpy as np
 import pandas as pd
+import torch.nn as nn
+from tqdm import tqdm
+from scipy import stats
 import matplotlib as mpl
 from typing import Dict, Any
 import matplotlib.pyplot as plt
-from matplotlib.ticker import LinearLocator
-from scipy import stats
-import torch.nn as nn
-from src.spring_mass_system.utils import set_seed, get_predicted_trajectory, get_target_trajectory, load_checkpoint, compute_parameters
-from src.spring_mass_system.pinn import PhysicsInformedNN, train_pinn, plot_loss_curves_pinn #, optimize_pinn_architecture
-from src.spring_mass_system.utils import figsize, savefig
 import matplotlib.gridspec as gridspec
+
+from src.spring_mass_system.utils import savefig
+from src.spring_mass_system.utils import set_seed
+from src.spring_mass_system.pinn import PhysicsInformedNN, train_pinn
 
 
 pgf_with_latex = {                      # setup matplotlib to use latex for output
@@ -224,6 +224,7 @@ def _get_results_pinn_errors_vs_lambda(config, N_lambdas, preprocessed_data):
 
 
 def plot_pinn_errors_vs_lambda(config, preprocessed_data, N_lambdas):
+    set_seed(42)
 
     # 
     df_pinn_errors = _get_results_pinn_errors_vs_lambda(config, N_lambdas, preprocessed_data)

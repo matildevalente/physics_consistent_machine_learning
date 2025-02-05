@@ -1,24 +1,18 @@
 import os
 import csv
-
 import torch
 import pickle
-
 import numpy as np
-import matplotlib as mpl
-import torch.nn as nn
-import random
-from matplotlib.lines import Line2D
-
 import pandas as pd
+import torch.nn as nn
+import matplotlib as mpl
 import matplotlib.pyplot as plt
-from src.ltp_system.utils import set_seed, load_dataset, load_config
-from src.ltp_system.utils import savefig, select_random_rows
+from matplotlib.lines import Line2D
 from sklearn.metrics import mean_absolute_percentage_error, mean_squared_error
 
-from src.ltp_system.data_prep import DataPreprocessor, LoadDataset, setup_dataset_with_preproprocessing_info
-from src.ltp_system.pinn_nn import get_trained_bootstraped_models, load_checkpoints, NeuralNetwork, get_average_predictions, get_predictive_uncertainty
+from src.ltp_system.data_prep import LoadDataset
 from src.ltp_system.projection import get_average_predictions_projected,constraint_p_i_ne
+from src.ltp_system.pinn_nn import get_trained_bootstraped_models, load_checkpoints, NeuralNetwork, get_average_predictions, get_predictive_uncertainty
 
 output_labels = [r'O$_2$(X)', r'O$_2$(a$^1\Delta_g$)', r'O$_2$(b$^1\Sigma_g^+$)', r'O$_2$(Hz)', r'O$_2^+$', r'O($^3P$)', r'O($^1$D)', r'O$^+$', r'O$^-$', r'O$_3$', r'O$_3^*$', r'$T_g$', r'T$_{nw}$', r'E$_{red}$', r'$v_d$', r'T$_{e}$', r'$n_e$']
 
@@ -46,7 +40,7 @@ def get_trained_nn(options, config, data_preprocessing_info, idx_dataset, idx_sa
         return nn_models, nn_losses_dict, device, training_time
     else:
         try:
-            nn_models, _, hidden_sizes, activation_fns, training_time = load_checkpoints(config['nn_model'], NeuralNetwork, checkpoint_dir)
+            nn_models, _, hidden_sizes, activation_fns, training_time = load_checkpoints(config['nn_model'], NeuralNetwork, checkpoint_dir, print_messages=False)
             return nn_models, hidden_sizes, activation_fns, training_time
         except FileNotFoundError:
             raise ValueError("Checkpoint not found. Set RETRAIN_MODEL to True or provide a valid checkpoint.")
@@ -70,6 +64,7 @@ def load_data(test_filename, data_preprocessing_info):
  
     return normalized_inputs, normalized_targets
 
+# preprocessing 
 def normalize_inputs(data_preprocessing_info, inputs):
 
     # Create a copy of the outputs, handling both NumPy arrays and PyTorch tensors
@@ -87,6 +82,7 @@ def normalize_inputs(data_preprocessing_info, inputs):
 
     return inputs_norm
 
+# preprocessing 
 def normalize_outputs(data_preprocessing_info,  outputs):
     # Create a copy of the outputs, handling both NumPy arrays and PyTorch tensors
     if torch.is_tensor(outputs):
@@ -241,7 +237,6 @@ def append_error_values(error_data, output, discrete_targets, discrete_nn_predic
     })
 
 # physical plot - outputs vs. pressure at a given discharge current (1 plot)
-#def Figure_6b(config, denormalized_predictions_dict, test_case):
 def Figure_6b(config, data_preprocessing_info, df_discrete, df_continuum, test_case):
     # extract output features
     outputs = config['dataset_generation']['output_features']
@@ -315,11 +310,12 @@ def Figure_6b(config, data_preprocessing_info, df_discrete, df_continuum, test_c
         save_path = os.path.join(output_dir, f"{output}.pdf")
         plt.savefig(save_path, pad_inches = 0.2)
         plt.close()
-    
+
     # Convert error data to a DataFrame and save to local directory
     error_normalized_df = pd.DataFrame(error_normalized_data)
     csv_save_path = os.path.join(output_dir, "error_normalized_data.csv")
     error_normalized_df.to_csv(csv_save_path, index=False)
+
 
 # create a configuration file for the chosen architecture
 def generate_config_(config, options):
@@ -349,7 +345,6 @@ def generate_config_(config, options):
         }
     }
 
-
 # Figures_6a; output/ltp_system/checkpoints/different_datasets/dataset_{}_sample_{}
 def run_figures_output_vs_pressure_diff_datasets(config, options, dataset_sizes_list, target_data_file_path):
 
@@ -359,6 +354,9 @@ def run_figures_output_vs_pressure_diff_datasets(config, options, dataset_sizes_
     The final (R,I)-constant curve prediction is a mean of the predictions of the different models trained with different samples of the same size.
     Different samples are used to reduce the bias of the datapoints selection.
     """
+
+    options['RETRAIN_MODEL'] = False
+    print("\nAnalysing pressure-related trends for models trained with datasets of different sizes ...\n")
 
     # extract the number of samples per dataset size
     n_samples = options['n_samples']
@@ -396,7 +394,7 @@ def run_figures_output_vs_pressure_diff_datasets(config, options, dataset_sizes_
                 options['learning_rate'] = config['nn_model']['learning_rate']
                 options['batch_size'] = config['nn_model']['batch_size']
                 options['lambda_physics'] = config['nn_model']['lambda_physics']
-                nn_models, _, hidden_sizes, activation_fns, training_time = load_checkpoints(options, NeuralNetwork, checkpoint_dir)
+                nn_models, _, _, _, _ = load_checkpoints(options, NeuralNetwork, checkpoint_dir, print_messages=False)
                 
                 # Load the preprocessing_info object with the information about the scalers
                 file_path = "output/ltp_system/checkpoints/different_datasets/data_preprocessing_info.pkl"
@@ -457,11 +455,17 @@ def run_figures_output_vs_pressure_diff_datasets(config, options, dataset_sizes_
 
         # make the plot
         Figure_6b(config, data_preprocessing_info, df_aggregated_discrete_predictions_dataset_idx, df_aggregated_continuum_predictions_dataset_idx, test_case = f"different_datasets/dataset_{dataset_size}")
-
+    
+    print(f"Loaded {len(dataset_sizes_list) * n_samples} models.")
+    print(f"Saved {len(dataset_sizes_list)} pressure-related plots for each of the {n_outputs} outputs as .pdf files to:\n   → {config['plotting']['output_dir']} /Figures_6b/test_case_different_datasets")
+    print(f"Saved corresponding normalized errors as .csv files.\n")
 
 # # Figures_6a; output/ltp_system/checkpoints/different_datasets/dataset_{}_sample_{}
 def run_figures_output_vs_pressure_diff_architectures(config, options, target_data_file_path, architectures_file_path):
-
+    
+    options['RETRAIN_MODEL'] = False
+    print("\nAnalysing pressure-related trends for models with different architectures ...\n")
+    
     # extract the number of samples per dataset size
     n_samples = options['n_samples']
     n_inputs = 3  # number of input features
@@ -506,7 +510,7 @@ def run_figures_output_vs_pressure_diff_architectures(config, options, target_da
                 options['batch_size'] = config['nn_model']['batch_size']
                 options['lambda_physics'] = config['nn_model']['lambda_physics']
 
-                nn_models, _, _, _, _ = load_checkpoints(options, NeuralNetwork, checkpoint_dir)
+                nn_models, _, _, _, _ = load_checkpoints(options, NeuralNetwork, checkpoint_dir, print_messages=False)
                 
                 # Load the preprocessing_info object with the information about the scalers
                 file_path = options['checkpoints_dir'] + "architecture_" + str(idx_arc) + "/data_preprocessing_info.pkl"
@@ -567,4 +571,7 @@ def run_figures_output_vs_pressure_diff_architectures(config, options, target_da
 
         # make the plot
         Figure_6b(config, data_preprocessing_info, df_aggregated_discrete_predictions_architecture_idx, df_aggregated_continuum_predictions_architecture_idx, test_case = f"different_architectures/architecture_{idx_arc}")
-
+    
+    print(f"Loaded {len(random_architectures_list) * n_samples} models.")
+    print(f"Saved {len(random_architectures_list)} pressure-related plots for each of the {n_outputs} outputs as .pdf files to:\n   → {config['plotting']['output_dir']} /Figures_6b/Figures_6b/test_case_different_architectures")
+    print(f"Saved corresponding normalized errors as .csv files.\n")

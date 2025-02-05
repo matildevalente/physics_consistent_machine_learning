@@ -1,11 +1,9 @@
 import os
-import torch
 import numpy as np
-import pandas as pd
 import matplotlib as mpl
 from typing import Dict, Any
 import matplotlib.pyplot as plt
-
+from src.ltp_system.utils import figsize, savefig
 
 pgf_with_latex = {                      # setup matplotlib to use latex for output
     "pgf.texsystem": "pdflatex",        # change this if using xetex or lautex
@@ -24,10 +22,6 @@ pgf_with_latex = {                      # setup matplotlib to use latex for outp
 plt.rcParams.update(pgf_with_latex)
 
 output_labels_latex = [r'O$_2$(X)', r'O$_2$(a$^1\Delta_g$)', r'O$_2$(b$^1\Sigma_g^+$)', r'O$_2$(Hz)', r'O$_2^+$', r'O($^3P$)', r'O($^1$D)', r'O$^+$', r'O$^-$', r'O$_3$', r'O$_3^*$', r'$T_g$', r'T$_{nw}$', r'$E/N$', r'$v_d$', r'T$_{e}$', r'$n_e$']
-
-
-
-from src.ltp_system.utils import figsize, savefig
 
 # Histogram of the Normalized Dataset
 def features_histogram_(config, X_train_norm, y_train_norm, X_test_norm, y_test_norm):
@@ -132,25 +126,9 @@ def densities_piechart_(config, y_data):
     save_path = os.path.join(output_dir, f"pie_plot")
     savefig(save_path, pad_inches = 0.2)
 
-
 # study training data boundaries and plot histograms
 def apply_eda(config, dataset, y_data):
   
-  """for i in range(len(dataset.X_train_norm[0,:])):
-    min_value = torch.min(torch.tensor(dataset.X_train_norm[i,:])).item()
-    max_value = torch.max(torch.tensor(dataset.X_train_norm[i,:])).item()
-    #print("input ", dataset.input_features[i], "\n [ ", min_value, "  ,  ", max_value , " ] ")
-  
-  for i in range(len(dataset.y_train_norm[0,:])):
-    min_value = torch.min(torch.tensor(dataset.y_train_norm[i,:])).item()
-    max_value = torch.max(torch.tensor(dataset.y_train_norm[i,:])).item()
-    #print("output ", dataset.output_features[i],  "\n [ ", min_value, "  ,  ", max_value, " ] ")"""
-
+  print("   → Applying EDA and saving the features histograms and species density piechart ...")
   features_histogram_(config, dataset.X_train_norm, dataset.y_train_norm, dataset.X_test_norm, dataset.y_test_norm)
   densities_piechart_(config, y_data)
-
-  """# Print minimum and maximum values of each column
-  for column in (dataset.df_train).columns:
-    min_value = dataset.df_train[column].min()
-    max_value = dataset.df_train[column].max()
-    #print(f"Column '{column}': Min Value: {min_value}, Max Value: {max_value}")"""
