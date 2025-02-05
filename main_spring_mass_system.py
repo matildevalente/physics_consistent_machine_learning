@@ -9,6 +9,7 @@ from tqdm import tqdm
 import torch.nn as nn
 from typing import Dict, Any, Tuple
 
+from clean import flush_model_artifacts
 from src.spring_mass_system.utils import set_seed, get_predicted_trajectory, get_target_trajectory, load_checkpoint, compute_parameters
 from src.spring_mass_system.dataset_gen import generate_dataset
 from src.spring_mass_system.data_prep import preprocess_data
@@ -22,11 +23,20 @@ from src.spring_mass_system.plotter.Figure_3 import plot_several_initial_conditi
 from src.spring_mass_system.plotter.Extra_Figure_1 import plot_pinn_errors_vs_lambda
 
 # Load the configuration file
-def load_config(config_path):
+def load_config(retrain_flag, config_path):
     
     # Load the configuration file
     with open(config_path, 'r') as f:
-        return yaml.safe_load(f)
+        config = yaml.safe_load(f)
+
+        # overwrite the manually defined retraining configurations with the user input
+        if(retrain_flag is not None):
+            config['nn_model']['RETRAIN_MODEL'] = retrain_flag
+            config['pinn_model']['RETRAIN_MODEL'] = retrain_flag
+            config['fig_3_options']['rerun_results'] = retrain_flag
+
+        return config
+
 
 # Load the dataset from a .csv file or generate the entire dataset
 def load_or_generate_dataset(config):
@@ -47,6 +57,7 @@ def load_or_generate_dataset(config):
 
 # 
 def get_trained_nn(config: Dict[str, Any], preprocessed_data: Any) -> Tuple[nn.Module, Tuple[list, list]]:
+    set_seed(42)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     nn_model = NeuralNetwork(config).to(device)
@@ -110,38 +121,36 @@ def get_inputs_from_loader(loader):
     return x_test
 
 
-def main():
+def main(retrain_flag):
     try:
-        # Set up logging
+        # /// 1. SETUP LOGGING ///
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
         logger = logging.getLogger(__name__)
 
-        # Set seed 
+        # /// 2. SET SEED ///
         set_seed(42)
 
-        # Load the configuration file
-        config = load_config('configs/spring_mass_system_config.yaml')
+        # /// 3. LOAD CONFIGURATION FILE /// 
+        config = load_config(retrain_flag, 'configs/spring_mass_system_config.yaml')
 
-        # /// 1. EXTRACT DATASET ///
+        # /// 4. EXTRACT DATASET ///
         df_dataset = load_or_generate_dataset(config)
         
-        # /// 2. PREPROCESS THE DATASET ///
+        # /// 5. PREPROCESS THE DATASET ///
         preprocessed_data = preprocess_data(df_dataset)
         test_initial_conditions = get_inputs_from_loader(preprocessed_data['test_loader'])
         
-        # /// 3. TRAIN THE NEURAL NETWORK (NN) ///
-        set_seed(42)
+        # /// 6. TRAIN THE NEURAL NETWORK (NN) ///
         nn_model, nn_losses, device_nn = get_trained_nn(config, preprocessed_data)
 
-        # /// 4. TRAIN THE PHYSICS-INFORMED NEURAL NETWORK (PINN) ///
-        set_seed(42)
+        # /// 7. TRAIN THE PHYSICS-INFORMED NEURAL NETWORK (PINN) ///
         plot_pinn_errors_vs_lambda(config, preprocessed_data, N_lambdas = 25)
         pinn_model, pinn_losses = get_trained_pinn(config, preprocessed_data, checkpoint_dir=os.path.join('output', 'spring_mass_system', 'checkpoints', 'pinn'))
         
-        # /// 5. PLOT LOSS CURVES FOR THE NN AND PINN ///
+        # /// 8. PLOT LOSS CURVES FOR THE NN AND PINN ///
         plot_loss_curves(config, nn_losses, pinn_losses)
 
-        # /// 6. EVALUATE ONE INITIAL CONDITION (Fig. 2) ///
+        # /// 9. EVALUATE ONE INITIAL CONDITION (Fig. 2) ///
         initial_state = [-0.16, -2.18,   0.09, -0.16]
         n_time_steps  = 165
         df_target = get_target_trajectory(config, n_time_steps = n_time_steps, initial_state = torch.tensor(initial_state))
@@ -155,7 +164,7 @@ def main():
         plot_predicted_energies_vs_target(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn)
         plot_bar_plot(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn, preprocessed_data)
 
-        # /// 7. EVALUATE SEVERAL INITIAL CONDITIONS (Fig. 3 & Table 1 & Table 2) 
+        # /// 10. EVALUATE SEVERAL INITIAL CONDITIONS (Fig. 3 & Table 1 & Table 2) 
         n_time_steps = 200
         plot_several_initial_conditions(config, preprocessed_data, nn_model, pinn_model, test_initial_conditions, n_time_steps, N_initial_conditions = 100)
 
@@ -165,6 +174,51 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    print("""
+    ╔════════════════════════════════════════════════════════════════════════════╗
+    ║                Physics-Consistent Machine Learning Method                  ║
+    ║                 PART 1: Spring-mass System Analysis                        ║
+    ╚════════════════════════════════════════════════════════════════════════════╝
+        
+    → Data generation
+    → Comparative analysis of the models performance for a given initial condition
+    → Comparative analysis of the models performance for several initial conditions
+
+    Research Paper: "Physics-consistent machine learning"
+    University of Lisbon, Av. Rovisco Pais 1, Lisbon, Portugal.
+    ──────────────────────────────────────────────────────────────────────────────
+    """)
+    
+    print("──────────────────────────────────────────────────────────────────────────────")
+    while True:
+        print("System Configuration:")
+        print("1. Retrain model (Fresh plots and tables)")
+        print("2. Use existing model (Load pre-computed results & trained weights)")
+        print("3. Define configurations manually using config files")
+
+        response = input("\nPlease select configuration (1,2,3): ").strip()
+        
+        if response == '1':
+            # flush the current checkpoints, plots and tables
+            retrain = flush_model_artifacts('spring')
+            print("──────────────────────────────────────────────────────────────────────────────\n")
+            main(retrain)
+            break
+            
+        elif response == '2':
+            retrain = False
+            print("\n[INFO] Using existing model weights and pre-computed results ...")
+            print("──────────────────────────────────────────────────────────────────────────────\n")
+            main(retrain)
+            break
+
+        elif response == '3':
+            print("\n[INFO] Using manually defined configurations ...")
+            print("──────────────────────────────────────────────────────────────────────────────\n")
+            main(None)
+            break
+            
+        else:
+            print("\n[ERROR] Invalid selection. Please choose 1 (Retrain) or 2 (Use existing).")
 
 
