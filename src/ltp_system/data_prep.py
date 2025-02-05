@@ -54,7 +54,10 @@ class DataPreprocessor():
     self.y_test_norm = None
 
   # train-test-split methods
-  def setup_dataset(self, X_data, y_data):
+  def setup_dataset(self, X_data, y_data, print_messages=True):
+
+    if(print_messages):
+      print("Fitting preprocessing scalers on large dataset...")
 
     # DATA PREPARATION -------------------------------------------------------------------------------------------
     # 1. Train-test-validation split
@@ -65,8 +68,8 @@ class DataPreprocessor():
     self.X_train, self.X_val, self.y_train, self.y_val = train_test_split(self.X_train, self.y_train, test_size=val_size, random_state=4) 
     
     # 2. Normalization
-    self.y_train_norm, self.y_test_norm, self.y_val_norm, self.scalers_output, self.skewed_features_out  = self.normalize_dataset(torch.tensor(self.y_train), torch.tensor(self.y_test), torch.tensor(self.y_val))
-    self.X_train_norm, self.X_test_norm, self.X_val_norm, self.scalers_input, self.skewed_features_in  = self.normalize_dataset(torch.tensor(self.X_train), torch.tensor(self.X_test), torch.tensor(self.X_val))
+    self.y_train_norm, self.y_test_norm, self.y_val_norm, self.scalers_output, self.skewed_features_out  = self.normalize_dataset(torch.tensor(self.y_train), torch.tensor(self.y_test), torch.tensor(self.y_val), print_messages)
+    self.X_train_norm, self.X_test_norm, self.X_val_norm, self.scalers_input, self.skewed_features_in  = self.normalize_dataset(torch.tensor(self.X_train), torch.tensor(self.X_test), torch.tensor(self.X_val), print_messages)
 
     # 3. Convert Data to Torch Tensors
     self.train_data = Data(self.X_train_norm, self.y_train_norm)
@@ -81,15 +84,15 @@ class DataPreprocessor():
     return self
 
   # apply normalization & log-transform
-  def normalize_dataset(self, train_data, test_data, val_data):
+  def normalize_dataset(self, train_data, test_data, val_data, print_messages = True):
     
     # 1. Compute squewness of all features
     skewness = np.abs(np.array([skew((train_data).cpu().numpy()[:, i]) for i in range((train_data).shape[1])]))
 
     # 2. Determine squewed features by comparing to a threshold
     skewed_features = np.where((skewness > self.skew_threshold_up) | (skewness < self.skew_threshold_down))[0]
-    print("The skewed features are: " + ", ".join([self.output_features[i] for i in skewed_features.tolist()])) if len(skewed_features) > 0 else None
-    print("\n")
+    if(print_messages):
+      print("   → The skewed features are: " + ", ".join([self.output_features[i] for i in skewed_features.tolist()])) if len(skewed_features) > 0 else None
     
     # 3. Apply the log transform to the skewed features
     trainDataTransformed, testDataTransformed, valDataTransformed = (train_data).clone(), (test_data).clone(), (val_data).clone()
@@ -199,7 +202,7 @@ class Data(Dataset):
 
 
 
-# DATA PREPARATION OF ONE DATASET USING FITTED SCALERS FROM ANOTHER DATASET (avoid data leakage)-----------------
+# 4. Applies the normalition
 def normalize_dataset(train_data, test_data, val_data, scalers, skewed_features):
   # 1. Perform copies to avoid modifying the original data
   train_data_transformed = (train_data).clone() 
@@ -219,8 +222,11 @@ def normalize_dataset(train_data, test_data, val_data, scalers, skewed_features)
 
   return np.array(train_data_scaled), np.array(test_data_scaled), np.array(val_data_scaled)
 
-# train-test-split methods
-def setup_dataset_with_preproprocessing_info(X_data, y_data, preprocessing_info):
+# 5. Aplly log and min max scalling to features given pre-fitted scalers as input
+def setup_dataset_with_preproprocessing_info(X_data, y_data, preprocessing_info, print_messages = True):
+
+  if(print_messages):
+    print(f"Performing data-preprocessing with pre-fitted scalers on large dataset ...")
 
   # 1. Train-test-validation split
   train_size = int(preprocessing_info.fraction_train * len(X_data)) 
@@ -243,5 +249,11 @@ def setup_dataset_with_preproprocessing_info(X_data, y_data, preprocessing_info)
   train_data = Data(X_train_norm, y_train_norm)
   test_data  = Data(X_test_norm, y_test_norm)
   val_data   = Data(X_val_norm, y_val_norm)
+
+  if(print_messages):
+    print("Performing train-test-val split...")
+    print(f"   → Train ({len(train_data)} points)")
+    print(f"   → Test  ({len(test_data)} points)")
+    print(f"   → Val   ({len(val_data)} points)")
 
   return train_data, test_data, val_data
