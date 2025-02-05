@@ -10,10 +10,10 @@ For more information, please refer to the following: ()
 2. Or run the main system directly using the default parameters
 3. To run the main programs use 
 ```bash
-python main_spring_mass_system.py
+python LowTemperaturePlasma.py
 ```
 ```bash
-python main_ltp_system.py
+python SpringMassSystem.py
 ```
 
 
