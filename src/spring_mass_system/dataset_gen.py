@@ -21,7 +21,7 @@ def random_initial_conditions(config, E_MAX):
 
 
 # Generate dataset between Emin and Emax and return dataframe
-def generate_dataset(config, column_names):
+def generate_dataset(config, column_names, print_messages=True):
               
     # Loop to generate dataset
     data, energy_list = [], []
@@ -34,6 +34,9 @@ def generate_dataset(config, column_names):
 
     # Set seed 
     set_seed(42)
+
+    if(print_messages):
+      print(f"Generating {num_samples} data points for dataset...")
     
     # Loop to generate dataset with tqdm progress bar
     for _ in tqdm(range(num_samples), desc="Generating Dataset"):
@@ -69,7 +72,13 @@ def generate_dataset(config, column_names):
     df['E'] = energy_list
 
     # Save to local directory
-    df.to_csv("data/spring_mass_system/data.csv", index=False)
+    dataset_dir = "data/spring_mass_system/data.csv"
+    df.to_csv(dataset_dir, index=False)
+
+    if(print_messages):
+        print(f"   → Saved dataset as .csv file to {dataset_dir}")
+
+    print("\n\n")
     
     return df
 

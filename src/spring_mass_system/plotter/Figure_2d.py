@@ -1,23 +1,11 @@
 import os
-import torch
-import logging
 import numpy as np
 import pandas as pd
-import seaborn as sns
-from tqdm import tqdm
-from scipy import stats
 import matplotlib as mpl
+import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
-from typing import Dict, Any
-import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
-import matplotlib.ticker as mticker
-from matplotlib.patches import Circle, ConnectionPatch
-from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, mean_squared_error
-
-
-from src.spring_mass_system.utils import figsize, newfig, savefig, compute_total_energy
+from src.spring_mass_system.utils import savefig
 
 pgf_with_latex = {                      # setup matplotlib to use latex for output
     "pgf.texsystem": "pdflatex",        # change this if using xetex or lautex
@@ -141,6 +129,7 @@ def save_df(config, variables, error_dict, sem_dict):
     os.makedirs(output_dir, exist_ok=True)  
     csv_path = os.path.join(output_dir, "table_norm_errors_Figure_2c.csv")
     df.to_csv(csv_path, index=False)
+    print(f"\nTable of the errors from the normalized trajectory in the analysis of one initial condition saved as .csv file to:\n   → {output_dir}.")
 
 # Figure 2d: Bar plot of the MAPE of the NN, standard PINN, and corresponding projected trajectories
 def plot_bar_plot(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn, preprocessed_data):
@@ -239,8 +228,4 @@ def plot_bar_plot(config, df_target, df_nn, df_pinn, df_proj_nn, df_proj_pinn, p
     os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, f"Figure_2c")
     savefig(save_path, pad_inches=0.2)
-
-
-  
-
-
+    print(f"\nBarplot of the errors from the normalized trajectory in the analysis of one initial condition saved as .pdf file to:\n   → {output_dir}.")

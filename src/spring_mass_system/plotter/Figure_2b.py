@@ -4,12 +4,10 @@ import pandas as pd
 import matplotlib as mpl
 from typing import Dict, Any
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pgf import FigureCanvasPgf
-from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 import matplotlib.gridspec as gridspec
 
-from src.spring_mass_system.utils import figsize, savefig
+from src.spring_mass_system.utils import savefig
 
 pgf_with_latex = {                      # setup matplotlib to use latex for output
     "pgf.texsystem": "pdflatex",        # change this if using xetex or lautex
@@ -59,7 +57,6 @@ def plot_predicted_trajectory_vs_target(
 
     variables = ['x1', 'v1', 'x2', 'v2']
     y_labels = ["x$_1$ (m)", "v$_1$ (m/s)", "x$_2$ (m)", "v$_2$ (m/s)"]
-    y_labels_units = ["(m)", "(m/s)", "(m)", "(m/s)"]
     legend_colors, legend_labels = [], []
 
     models_parameters['NN']['pred_trajectory'] = df_nn
@@ -67,15 +64,13 @@ def plot_predicted_trajectory_vs_target(
     models_parameters['proj_nn']['pred_trajectory'] = df_proj_nn
     models_parameters['proj_pinn']['pred_trajectory'] = df_proj_pinn
     
-    global_mape_max = 0
-
     for model_key in ['NN', 'PINN', 'proj_nn', 'proj_pinn']:
         df_pred = models_parameters[model_key]['pred_trajectory']
         for i, var in enumerate(variables):
             err_arr = np.abs( df_pred[var] - df_target[var] ) 
             models_parameters[model_key]['abs_err'] = err_arr
 
-    global_mape_max = np.ceil(max(np.max(models_parameters[model_key]['abs_err']) for model_key in ['NN', 'PINN', 'proj_nn', 'proj_pinn']) * 10) / 10
+    #global_mape_max = np.ceil(max(np.max(models_parameters[model_key]['abs_err']) for model_key in ['NN', 'PINN', 'proj_nn', 'proj_pinn']) * 10) / 10
 
     # Use LaTeX for pgf
     mpl.use('pgf')
@@ -145,21 +140,8 @@ def plot_predicted_trajectory_vs_target(
             y_max = max(df_pred[var].max(), df_target[var].max()) + 0.2
             ax_ticks = np.arange(y_min, y_max, (y_max - y_min) / 4)
             ax.set_yticks(ax_ticks)
-            #ax.set_yticklabels([f'{tick:.1f}' for tick in ax_ticks])
             if model_idx == 0:
                 ax.set_yticklabels([f'{tick:.1f}' for tick in ax_ticks])  # Only leftmost plots show y-tick labels
-
-            """# Create secondary y-axis for Absolute Error
-            ax2 = ax.twinx()
-            ax2.plot(df_pred['time(s)'], models_parameters[model_key]['abs_err'], color='#7f7f7f', linewidth = 2.5)
-            ax2.set_ylabel(fr'$\epsilon_{{\mathrm{{abs}}}}$ {y_labels_units[i]}', color='#7f7f7f', fontsize=40)
-            ax2.tick_params(axis='y', labelcolor='#7f7f7f', labelsize=40)
-            ax2_ticks = np.linspace(0, global_mape_max, num=3)
-            ax2.set_yticks(ax2_ticks)
-            # remove y-ticks of the second axis from all the plots except the one in the last column
-            if model_idx != (num_models_for_plot - 1): # (-1) because the index starts in 0
-                ax2.set_yticklabels([]) 
-                ax2.set_ylabel(None)"""
 
             ##################### Plot in the last column a comparison between all the plots ######################
 
@@ -214,4 +196,6 @@ def plot_predicted_trajectory_vs_target(
     os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, f"Figure_2a")
     savefig(save_path, pad_inches = 0.2)
+    print(f"\nPlot of the trajectory over time in the analysis of one initial condition saved as .pdf file to:\n   → {output_dir}.")
+
 

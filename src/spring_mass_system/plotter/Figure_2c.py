@@ -4,10 +4,8 @@ import  numpy as np
 import matplotlib as mpl
 from typing import Dict, Any
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
-from matplotlib.ticker import MaxNLocator
 
-from src.spring_mass_system.utils import figsize, newfig, savefig
+from src.spring_mass_system.utils import savefig
 
 pgf_with_latex = {
     "pgf.texsystem": "pdflatex",        # change this if using xetex or lautex
@@ -103,3 +101,5 @@ def plot_predicted_energies_vs_target(
     os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, f"Figure_2b")
     savefig(save_path, pad_inches=0.2)
+    print(f"\nPlot of the energy over time in the analysis of one initial condition saved as .pdf file to:\n   → {output_dir}.")
+

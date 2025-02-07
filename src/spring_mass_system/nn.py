@@ -1,19 +1,9 @@
-import os
+"""import os
 import torch
-import yaml
 import torch.nn as nn
-import numpy as np
-import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
-import pandas as pd
-import matplotlib.pyplot as plt
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
-import matplotlib as mpl
-from skopt.space import Integer, Categorical
-from skopt import gp_minimize
-from skopt.utils import use_named_args
-from typing import Optional, Tuple, List
 from src.spring_mass_system.utils import set_seed, save_checkpoint, savefig
 
 set_seed(42)
@@ -59,36 +49,53 @@ class NeuralNetwork(nn.Module):
                 nn.init.xavier_uniform_(m.weight)
                 nn.init.constant_(m.bias, 0.01)
 
+    def count_parameters(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
 
 # Train NN model
-def train_nn(config, model, preprocessed_data, loss_fn, optimizer, device, checkpoint_dir, print_every=5):
+def train_nn(config, model, preprocessed_data, optimizer, device, checkpoint_dir, print_every=5, print_messages=True):
     model.to(device)
     train_losses, val_losses = [], []
     best_val_loss = float('inf')
+
+    # Access the variables from the config file
     num_epochs = config['nn_model']['num_epochs']
+
+    # Access the components from the preprocessed data
     train_loader = preprocessed_data['train_loader']
     val_loader = preprocessed_data['val_loader']
+
+    # Acess the scaler components from the preprocessed data
+    scaler_X = preprocessed_data['scaler_X']
 
     # Ensure the directory exists
     if checkpoint_dir is not None:
         if not os.path.exists(checkpoint_dir):
             os.makedirs(checkpoint_dir)
 
+    if print_messages:
+        print(f"\nInitiating training of the NN model ...")
 
     for epoch in tqdm(range(num_epochs), desc="Training NN  "):
         set_seed(42)
         model.train()
-        train_loss = _run_epoch(model, train_loader, loss_fn, optimizer, device)
+        train_loss = _run_epoch(model, train_loader, optimizer, device)
         train_losses.append(train_loss)
 
         model.eval()
         with torch.no_grad():
-            val_loss = _run_epoch(model, val_loader, loss_fn, None, device)
+            val_loss = _run_epoch(model, val_loader, None, device)
             val_losses.append(val_loss)
         
         if (config['plotting']['PRINT_LOSS_VALUES'] == True):
             if epoch % print_every == 0:
-                print(f'Epoch {epoch}: Train Loss: {train_loss:.6e}, Val Loss: {val_loss:.6e}')
+                #print(f'Epoch {epoch}: Train Loss: {train_loss:.6e}, Val Loss: {val_loss:.6e}')
+                print(f'Epoch {epoch}:')
+                print(f'  Train Loss Total          : {train_loss:.4e}')
+                print(f'  Train Loss Physics (0.00%): 0.00')
+                print(f'  Train Loss Data (0.00%)   : 0.00')
+                print(f'  Val Loss                  : {val_loss:.4e}')
 
         # Save checkpoint
         if checkpoint_dir is not None:
@@ -106,10 +113,18 @@ def train_nn(config, model, preprocessed_data, loss_fn, optimizer, device, check
                     os.path.join(checkpoint_dir, 'best_checkpoint.pth')
                 )
 
+    if print_messages:
+        print(f"All checkpoints and aggregated losses saved in {checkpoint_dir}")
+
+    if print_messages:
+        print("Model training complete.\n\n")
+
+        
     return train_losses, val_losses
 
+
 # Run an epoch
-def _run_epoch(model, data_loader, loss_fn, optimizer, device):
+def _run_epoch(model, data_loader, optimizer, device):
     total_loss = 0
     for inputs, targets in data_loader:
         # Set seed 
@@ -117,7 +132,7 @@ def _run_epoch(model, data_loader, loss_fn, optimizer, device):
         
         inputs, targets = inputs.to(device), targets.to(device)
         outputs = model(inputs)
-        loss = loss_fn(outputs, targets)
+        loss = nn.MSELoss()(outputs, targets)
         
         if optimizer is not None:  # Training mode
             optimizer.zero_grad()
@@ -127,6 +142,7 @@ def _run_epoch(model, data_loader, loss_fn, optimizer, device):
         total_loss += loss.item() * inputs.size(0)
     
     return total_loss / len(data_loader.dataset)
+
 
 # This function runs if the user defines PLOT_LOSS_CURVES: True it in the config file
 def plot_loss_curves_nn(config, train_losses, val_losses):
@@ -149,79 +165,4 @@ def plot_loss_curves_nn(config, train_losses, val_losses):
     save_path = os.path.join(output_dir, f"nn_loss_curves")
     savefig(save_path, pad_inches = 0.2)
 
-
-
-
-### This section of the code optimizes the PINN architecture based on the val loss
-def generate_config_(config, hidden_sizes, activation_fn):
-    return {
-        'nn_model': {
-            'RETRAIN_MODEL': config['nn_model']['RETRAIN_MODEL'],
-            'input_size': config['nn_model']['input_size'],
-            'hidden_sizes': hidden_sizes,
-            'output_size': config['nn_model']['output_size'],
-            'num_epochs': config['nn_model']['num_epochs'],
-            'learning_rate': config['nn_model']['learning_rate'],
-            'activation_fn': activation_fn,
-        },
-        'spring_mass_system': config['spring_mass_system'],
-        'plotting': config['plotting']
-    }
-    
-def evaluate_architecture(config, architecture, preprocessed_data, activation_function):
-
-    # create nn model
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    learning_rate = config['nn_model']['learning_rate']
-    config_new = generate_config_(config, architecture, activation_function)
-    nn_model = NeuralNetwork(config_new).to(device)
-    optimizer = torch.optim.Adam(nn_model.parameters(), lr=learning_rate)
-
-    # train pinn model
-    train_losses, val_losses = train_nn(config_new, nn_model, preprocessed_data, nn.MSELoss(), optimizer, device, None)
-    
-    return val_losses[-1]
-
-def optimize_architecture_nn(original_config, preprocessed_data, num_iterations):
-    # Define the search space
-    search_space  = [
-        Integer(1, 150, name='layer_1'), 
-        Integer(1, 150, name='layer_2'), 
-        Integer(1, 150, name='layer_3'),   
-        Categorical(['relu', 'tanh',  'leaky_relu'], name='activation')
-    ]
-
-    # Counter to track the iterations
-    iteration = 0
-    rows = []
-    df_ = pd.DataFrame(columns= ['iteration', 'architecture', 'activation', 'val_loss'])
-
-    # Use @use_named_args to match the function signature with the space definition
-    @use_named_args(search_space)
-    def objective(**params):
-        nonlocal iteration
-        iteration += 1
-        architecture = [params['layer_1'], params['layer_2'], params['layer_3']]
-        activation_function = params['activation']
-        # Evaluate the architecture
-        val_loss = evaluate_architecture(original_config, architecture, preprocessed_data, activation_function)
-
-        new_row = {
-            'iteration': iteration,
-            'architecture': architecture, 
-            'activation': activation_function, 
-            'val_loss': val_loss
-        }
-        rows.append(new_row)
-        
-        return val_loss
-    
-    # Now run Bayesian optimization
-    result = gp_minimize(objective, search_space, n_calls=num_iterations, random_state=42 )
-    df_ = pd.DataFrame(rows, columns=['iteration', 'architecture', 'activation', 'val_loss'])
-
-    print("Best NN architecture: ", result.x[:3]) 
-    print("Best NN activation  : ", result.x[3] ) 
-    print(df_) 
-        
-
+"""

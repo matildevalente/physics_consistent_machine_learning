@@ -1,36 +1,22 @@
 import os
 import torch
-import logging
 import numpy as np
 import pandas as pd
+import scienceplots
 import seaborn as sns
 from tqdm import tqdm
-import matplotlib.ticker as mticker
+from pathlib import Path
 import matplotlib as mpl
-import pandas as pd
-from pathlib import Path
-
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 from matplotlib.lines import Line2D
-from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, mean_squared_error
-import matplotlib.pyplot as plt
-import scienceplots
-plt.style.use(['science','nature'])
-import pandas as pd
 import matplotlib.gridspec as gridspec
-import seaborn as sns
-
-from matplotlib.lines import Line2D
-import os
-import json
-import numpy as np
-from pathlib import Path
-
 
 from src.spring_mass_system.utils import get_predicted_trajectory, get_target_trajectory, savefig
-from src.spring_mass_system.projection import get_projection_df #get_projected_trajectory
+from src.spring_mass_system.projection import get_projection_df 
 
 
+plt.style.use(['science','nature'])
 
 pgf_with_latex = {                      # setup matplotlib to use latex for output
     "pgf.texsystem": "pdflatex",        # change this if using xetex or lautex
@@ -102,7 +88,7 @@ def get_results(config, n_time_steps, models, test_initial_states, N_initial_con
     for initial_state in tqdm(test_initial_states[:N_initial_conditions], desc="Processing initial states"):
 
         # 1. Get target trajectory predictions (the state variables are normalized to [-1, 1])
-        df_target = get_target_trajectory(config, n_time_steps, initial_state=torch.tensor(initial_state))
+        df_target = get_target_trajectory(config, n_time_steps, initial_state=torch.tensor(initial_state), print_messages=False)
         df_target_norm = _normalize_trajectory(df_target, scaler_X)
         
         # 2. Get the predictions of the NN model and PINN model as well as their projections (the state variables are normalized to [-1, 1])
@@ -264,8 +250,8 @@ def _analyse_proj_improvement_rate(config, mape_dict_accumulated, rmse_dict_accu
     save_path = os.path.join(output_dir, f"proj_improvement_rates.csv")   
     df_improvement_rates.to_csv(save_path, index=False)
     
-    #best_initial_condition_ = scaler_X.inverse_transform(best_initial_condition.reshape(1, -1))
-    #print("Best Initial Condition: ", best_initial_condition_)
+    print(f"\nTable of improvement rates saved as .csv file to:\n   → {output_dir}.")
+
 
 # Save the results that will be added to the plot
 def save_results(mape_dict, rmse_dict, output_dir):
@@ -291,9 +277,12 @@ def load_results(output_dir):
     return mape_dict, rmse_dict
     
 # main function to run the experiment
-def plot_several_initial_conditions(config, preprocessed_data, nn_model, pinn_model, test_initial_states, n_time_steps, N_initial_conditions):
-
-    metrics_names = ['RMSE', 'MAPE']
+def plot_several_initial_conditions(config, preprocessed_data, nn_model, pinn_model, test_initial_states, n_time_steps, N_initial_conditions, print_messages=True):
+    
+    if print_messages:
+        print("\n\n====================   Evaluating Several Initial Conditions    ====================")
+    
+    metrics_names = ['RMSE']
     scaler_X = preprocessed_data['scaler_X']
     state_variables = ['x1', 'x2', 'v1', 'v2', 'E']
     models = ['NN', 'PINN', 'proj_NN_I', 'proj_PINN_I']
@@ -314,6 +303,7 @@ def plot_several_initial_conditions(config, preprocessed_data, nn_model, pinn_mo
     
     # Create the violin plot
     _plot_violin(rmse_dict_accumulated, mape_dict_accumulated, config, models, metrics_names, state_variables)
+
 
 
 ####### ----------------------------
@@ -362,173 +352,7 @@ def  _add_mean_and_errorbar(df_plot, df_rows, metrics_names, models, axs, row, c
 
     return df_plot, df_rows
 
-"""# function that plots the results
-def _plot_violin(rmse_dict_accumulated, mape_dict_accumulated, config, models, metrics_names, state_variables):
-    
 
-    # List to map each column to the corresponding subplot position
-    plot_order = [('x1', 0, 0),  ('x2', 0, 1), ('v1', 0, 3), ('v2', 0, 4), ('E', 2, 0)]
-    colors = [models_parameters[model]['color'] for model in models]
-
-    # Table 1
-    columns_table = ["Model", "Metric", "Output" , "Error Value", "Std Value"]
-    df_table1 = pd.DataFrame(columns= columns_table)
-    df_rows = []
-
-    # For each model get a df for each error metric
-    list_df_mape, list_df_rmse = [], []
-    for model_key in models:
-        df_rmse = pd.DataFrame(rmse_dict_accumulated[model_key], columns=state_variables)
-        df_mape = pd.DataFrame(mape_dict_accumulated[model_key], columns=state_variables)
-        list_df_rmse.append(df_rmse)
-        list_df_mape.append(df_mape)
-
-    # Set up the figure with 3 rows and 2 columns
-    idx_col = 0
-    fig = plt.figure(figsize=(16, 8), constrained_layout=True)
-    gs = gridspec.GridSpec(3, 5, width_ratios=[0.9, 0.9, 0.2, 0.9, 0.9]) 
-    axs = [[fig.add_subplot(gs[row, col]) for col in range(5)] for row in range(3)]
-
-    # loop over each of the 5 plots: x1, v1, x2, v2, E
-    for column, row, col in plot_order:
-        data = []
-        
-        for metric_idx, metric_name in enumerate(metrics_names):
-            data_metric = []
-            
-            for model_idx, model in enumerate(models):
-                model_data = [list_df_rmse, list_df_mape][metric_idx][model_idx]
-                data.extend([[value, metric_name, model] for value in model_data[column]])
-                data_metric.extend([[value, metric_name, model] for value in model_data[column]])
-                
-            if(metric_name == "RMSE"):
-                # get rmse data
-                df_plot_rmse = pd.DataFrame(data_metric, columns=['Error', 'Metric', 'Model'])
-                # Draw the RMSE plot
-                ax = axs[row][col]
-                # plot
-                sns.violinplot(x='Metric', y='Error', hue='Model', data=df_plot_rmse, scale='count', inner='point', dodge=True, saturation=1, palette=colors, ax=ax)
-                # formatting
-                ax.set_title(state_variables_parameters[column]['legend'], fontsize = 20)
-                # y label
-                ax.set_ylabel('RMSE ', fontsize = 18)
-                ax.tick_params(axis='y', labelsize=18)  
-                ax.set_yscale('log') if column == "E" else None
-                # x label
-                ax.set_xlabel(None)
-                ax.tick_params(axis='x', which='both', bottom=False, labelbottom=False)
-                # legend & plot
-                ax.get_legend().remove() 
-                
- 
-            elif(metric_name == "MAPE"):
-                # get mape data
-                df_plot_mape = pd.DataFrame(data_metric, columns=['Error', 'Metric', 'Model'])
-                # Draw the MAPE plot    
-                if(column == "E"):            
-                    ax = axs[2][1]
-                    ax.set_yscale('log')
-                else:
-                    ax = axs[row+1][col]
-                # plot
-                sns.violinplot(x='Metric', y='Error', hue='Model', data=df_plot_mape, scale='count', inner='point', dodge=True, saturation=1, palette=colors, ax=ax)
-                # formatting
-                ax.set_title(state_variables_parameters[column]['legend'], fontsize = 20) 
-                # y label
-                ax.set_ylabel('MAPE (\%)', fontsize=18)
-                ax.tick_params(axis='y', labelsize=18)
-                # x label
-                ax.set_xlabel(None)
-                ax.tick_params(axis='x', which='both', bottom=False, labelbottom=False)
-                # legend 
-                ax.get_legend().remove()
-                
-                
-        df_plot = pd.DataFrame(data, columns=['Error', 'Metric', 'Model'])
-        df_plot, df_rows = _add_mean_and_errorbar(df_plot, df_rows, metrics_names, models, axs, row, col, column)
-        idx_col += 1
-    
-    # create dataframe & save results to local dir in .csv format
-    df_table1 = pd.DataFrame(df_rows, columns=columns_table)
-    file_path = "output/spring_mass_system/proj_improvement_rates/Table1.csv"
-    directory = os.path.dirname(file_path)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    df_table1.to_csv(file_path, index=False)
-    
-    # remove ylabels and yticks to simplify plot
-    for row, col in [[0, 1], [0, 4], [1, 1], [1, 4]]:
-        axs[row][col].set_ylabel(None)
-        #axs[row][col].tick_params(axis='y', labelleft=False) 
-    
-    # hide axis
-    for row, col in [[2, 2], [2, 3], [2, 4], [0, 2], [1, 2]]:
-        axs[row][col].axis('off')
-
-    # Apply log scale to specific y-axes
-    #for row, col in [[1, 0], [1, 1], [1, 3], [1, 4]]:
-    #    axs[row][col].set_yscale('log')
-
-    #axs[1][0].set_ylim(-1, 2.5)
-    #axs[1][1].set_ylim(-1.5, 5)
-    #axs[1][3].set_ylim(-1, 2.5)
-    #axs[1][4].set_ylim(-2.1, 5)
-
-    # remove ylabels and yticks to simplify plot
-    #for row, col in [[0, 1], [0, 4]]:
-    #    axs[row][col].tick_params(axis='y', labelleft=False) 
-
-    # fix y ranges
-    #for ax1, ax2 in [[[0, 0], [0, 1]],[[0, 3], [0, 4]],[[1, 0], [1, 1]],[[1, 3], [1, 4]]]:
-    #for ax1, ax2 in [[[0, 0], [0, 1]],[[0, 3], [0, 4]]]:
-    #    y_min_widest = min(axs[ax1[0]][ax1[1]].get_ylim()[0], axs[ax2[0]][ax2[1]].get_ylim()[0])
-    #    y_max_widest = max(axs[ax1[0]][ax1[1]].get_ylim()[1], axs[ax2[0]][ax2[1]].get_ylim()[1])
-    #    axs[ax1[0]][ax1[1]].set_ylim(y_min_widest, y_max_widest)
-    #    axs[ax2[0]][ax2[1]].set_ylim(y_min_widest, y_max_widest)
-    
-
-
-    # Move the y-axis label and y-ticks to the right side for axs[2][1]
-    axs[2][1].yaxis.set_label_position("right")  
-    axs[2][1].tick_params(axis='y', labelright=True, labelleft=False)  
-    axs[2][1].set_yticks([1e0, 1e-1, 1e-3, 1e-6])  
-    axs[2][1].set_yticklabels([r'$10^{0}$', r'$10^{-1}$', r'$10^{-3}$', r'$10^{-6}$'])  
-    axs[2][0].set_yticks([1e0, 1e-1, 1e-3, 1e-6])  
-    axs[2][0].set_yticklabels([r'$10^{0}$',r'$10^{-1}$', r'$10^{-3}$', r'$10^{-6}$'])  
-
-
-    # Merge cells [2,3] and [2,4] 
-    gs = gridspec.GridSpec(3, 5, figure=fig) 
-    ax_legend = fig.add_subplot(gs[2, 3:5])  
-    ax_legend.axis('off')  # Hide the axis
-
-    # Add the legend in the merged cell
-    ax_legend.legend(
-        handles=[
-            plt.Line2D([0], [0], color=colors[0], lw=12, label='NN'),
-            plt.Line2D([0], [0], color=colors[1], lw=12, label='PINN'),
-            plt.Line2D([0], [0], color=colors[2], lw=12, label=r'NN Projection'),
-            plt.Line2D([0], [0], color=colors[3], lw=12, label=r'PINN Projection'),
-            Line2D([0], [0], color='black', marker='_', markersize=7, linestyle='', markeredgewidth=2, label='Mean ± Std'),
-        ],
-        loc='center', 
-        bbox_to_anchor=(0.43, 0.5),
-        frameon=False,
-        prop={'size': 22},  
-        markerscale=1.5,
-        labelspacing=0.45,  # vertical spacing between rows 
-        ncol=2,
-        columnspacing=1.7  # Increase this value for more space between columns
-    )
-
-    # Save figure
-    output_dir = config['plotting']['output_dir']
-    os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, f"Figure_2")
-    plt.savefig('{}.pdf'.format(save_path), bbox_inches='tight', pad_inches=0.2)
-
-
-"""
 # function that plots the results
 def _plot_violin(rmse_dict_accumulated, mape_dict_accumulated, config, models, metrics_names, state_variables):
     
@@ -549,7 +373,6 @@ def _plot_violin(rmse_dict_accumulated, mape_dict_accumulated, config, models, m
         list_df_rmse.append(df_rmse)
 
     # Set up the figure with 3 rows and 2 columns
-    idx_col = 0
     mpl.use('pgf')
     plt.style.use('seaborn-v0_8-paper')
     fig = plt.figure(figsize=(15, 9), constrained_layout=True)
@@ -560,21 +383,21 @@ def _plot_violin(rmse_dict_accumulated, mape_dict_accumulated, config, models, m
     for column, row, col in plot_order:
         data = []
         
-        for metric_idx, metric_name in enumerate(['RMSE']):
+        for metric_idx, metric_name in enumerate(metrics_names):
             data_metric = []
             
             for model_idx, model in enumerate(models):
                 model_data = [list_df_rmse][metric_idx][model_idx]
                 data.extend([[value, metric_name, model] for value in model_data[column]])
                 data_metric.extend([[value, metric_name, model] for value in model_data[column]])
-                
+            
             if(metric_name == "RMSE"):
                 # get rmse data
                 df_plot_rmse = pd.DataFrame(data_metric, columns=['Error', 'Metric', 'Model'])
                 # Draw the RMSE plot
                 ax = axs[row][col]
                 # plot
-                sns.violinplot(x='Metric', y='Error', hue='Model', data=df_plot_rmse, scale='count', inner='point', dodge=True, saturation=1, palette=colors, ax=ax)
+                sns.violinplot(x='Metric', y='Error', hue='Model', data=df_plot_rmse, density_norm='count', inner='point', dodge=True, saturation=1, palette=colors, ax=ax)
                 # formatting
                 ax.set_title(state_variables_parameters[column]['legend'], fontsize = 30)
                 # y label
@@ -586,12 +409,9 @@ def _plot_violin(rmse_dict_accumulated, mape_dict_accumulated, config, models, m
                 ax.tick_params(axis='x', which='both', bottom=False, labelbottom=False)
                 # legend & plot
                 ax.get_legend().remove() 
-                
-                
-                
+
         df_plot = pd.DataFrame(data, columns=['Error', 'Metric', 'Model'])
         df_plot, df_rows = _add_mean_and_errorbar(df_plot, df_rows, metrics_names, models, axs, row, col, column)
-        idx_col += 1
     
     # create dataframe & save results to local dir in .csv format
     df_table1 = pd.DataFrame(df_rows, columns=columns_table)
@@ -599,7 +419,7 @@ def _plot_violin(rmse_dict_accumulated, mape_dict_accumulated, config, models, m
     os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, f"errors_norm_trajectories_Figure_3.csv")   
     df_table1.to_csv(save_path, index=False)
-
+    print(f"\nTable of mean errors over the normalized trajectories saved as .csv file to:\n   → {output_dir}.")
 
     # remove ylabels and yticks to simplify plot
     for row, col in [[0, 1], [1, 1]]:
@@ -618,7 +438,7 @@ def _plot_violin(rmse_dict_accumulated, mape_dict_accumulated, config, models, m
     # hide axis
     for row, col in [[2, 1]]:
         axs[row][col].axis('off')
-
+    
     # Move the y-axis label and y-ticks to the right side for axs[2][1]
     axs[2][1].yaxis.set_label_position("right")  
     axs[2][1].tick_params(axis='y', labelright=True, labelleft=False)  
@@ -626,6 +446,7 @@ def _plot_violin(rmse_dict_accumulated, mape_dict_accumulated, config, models, m
     axs[2][1].set_yticklabels([r'$1$', r'$10^{-2}$', r'$10^{-4}$', r'$10^{-6}$'])  
     axs[2][0].set_yticks([1, 1e-2, 1e-4, 1e-6])  
     axs[2][0].set_yticklabels([r'$1$',r'$10^{-2}$', r'$10^{-4}$', r'$10^{-6}$'])  
+
 
     # Adjust GridSpec to 3 rows and 5 columns as before
     gs = gridspec.GridSpec(3, 5, figure=fig)
@@ -659,9 +480,4 @@ def _plot_violin(rmse_dict_accumulated, mape_dict_accumulated, config, models, m
     os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, f"Figure_3")
     savefig(save_path, pad_inches=0.2)
-    #plt.savefig('{}.pdf'.format(save_path),bbox_inches='tight' , pad_inches=0.2)
-
-
-
-
-
+    print(f"\nViolin plot of the analysis of several initial conditions saved as .pdf file to:\n   → {output_dir}.")

@@ -10,17 +10,6 @@ import matplotlib.pyplot as plt
 logger = logging.getLogger(__name__)
 
 
-
-
-def figsize(scale, nplots = 1):
-    fig_width_pt = 390.0                          # Get this from LaTeX using \the\textwidth
-    inches_per_pt = 1.0/72.27                       # Convert pt to inch
-    golden_mean = (np.sqrt(5.0)-1.0)/2.0            # Aesthetic ratio (you could change this)
-    fig_width = fig_width_pt*inches_per_pt*scale    # width in inches
-    fig_height = nplots*fig_width*golden_mean              # height in inches
-    fig_size = [fig_width,fig_height]
-    return fig_size
-
 pgf_with_latex = {                      # setup matplotlib to use latex for output
     "pgf.texsystem": "pdflatex",        # change this if using xetex or lautex
     "text.usetex": True,                # use LaTeX to write all text
@@ -37,7 +26,17 @@ pgf_with_latex = {                      # setup matplotlib to use latex for outp
 
 plt.rcParams.update(pgf_with_latex)
 
-# I make my own newfig and savefig functions
+
+def figsize(scale, nplots = 1):
+    fig_width_pt = 390.0                          # Get this from LaTeX using \the\textwidth
+    inches_per_pt = 1.0/72.27                       # Convert pt to inch
+    golden_mean = (np.sqrt(5.0)-1.0)/2.0            # Aesthetic ratio (you could change this)
+    fig_width = fig_width_pt*inches_per_pt*scale    # width in inches
+    fig_height = nplots*fig_width*golden_mean              # height in inches
+    fig_size = [fig_width,fig_height]
+    return fig_size
+
+
 def newfig(width, nplots = 1):
     fig = plt.figure(figsize=figsize(width, nplots))
     ax = fig.add_subplot(111)
@@ -57,12 +56,9 @@ def savefig(filename, pad_inches, crop=True):
         print(f"Could not save the figure due to an error: {e}")
 
 
-
-
-# Compute the total energy for a given state
 def compute_total_energy(config: Dict[str, Any], state: Union[np.ndarray, list, tuple]) -> float:
     """
-    Compute the total energy of a spring-mass system.
+    Compute the total energy for a given state
 
     Args:
         config (Dict[str, Any]): Configuration dictionary containing system parameters.
@@ -88,7 +84,6 @@ def compute_total_energy(config: Dict[str, Any], state: Union[np.ndarray, list, 
     return KE + PE
 
 
-# System dynamics function
 def system_dynamics(config, y):
 
     # Unpack the state vector y into positions (x1, x2) and velocities (v1, v2)
@@ -112,33 +107,15 @@ def system_dynamics(config, y):
     return np.array([v1, dd1, v2, dd2])
 
 
-# RK4 integration step function
 def rk4_step(config, y, dt):
+    # RK4 integration step function
     f1 = system_dynamics(config, y)
     f2 = system_dynamics(config, y + np.array(f1) * 0.5 * dt)
     f3 = system_dynamics(config, y + np.array(f2) * 0.5 * dt)
     f4 = system_dynamics(config, y + np.array(f3) * dt)
     return y + dt * (np.array(f1) + 2 * np.array(f2) + 2 * np.array(f3) + np.array(f4)) / 6
 
-"""# RK8 integration step function
-def rk8_step(config, y, dt):
-    k1 = dt * system_dynamics(config, y)
-    k2 = dt * system_dynamics(config, y + k1 * 4/27)
-    k3 = dt * system_dynamics(config, y + (k1 + k2) / 36)
-    k4 = dt * system_dynamics(config, y + (k1 + 3*k3) / 24)
-    k5 = dt * system_dynamics(config, y + (5*k1 - 9*k3 + 6*k4) / 8)
-    k6 = dt * system_dynamics(config, y + (-11*k1 + 18*k3 - 9*k4 - 2*k5) / 27)
-    k7 = dt * system_dynamics(config, y + (17*k1 - 27*k3 + 27*k4 + k5 + k6) / 72)
-    k8 = dt * system_dynamics(config, y + (-221*k1 + 981*k3 - 867*k4 + 68*k5 - 33*k6 + 72*k7) / 1080)
-    k9 = dt * system_dynamics(config, y + (k1 + 8*k6 + k7) / 90)
-    k10 = dt * system_dynamics(config, y + (-1/270 * k1 + 2/27 * k6 + 1/27 * k7 + 2/27 * k8))
-    k11 = dt * system_dynamics(config, y + (1/6 * k1 + 2/3 * k7 - 1/3 * k8 + 1/6 * k9))
-    k12 = dt * system_dynamics(config, y + (-1/54 * k1 + 1/6 * k7 - 1/18 * k8 - 1/54 * k9 + 1/18 * k10))
-    k13 = dt * system_dynamics(config, y + (1/14 * k1 + 1/14 * k9 + 4/7 * k11 - 1/7 * k12))
 
-    return y + (41*k1 + 216*k8 + 27*k9 + 272*k10 + 27*k11 + 216*k12 + 41*k13) / 840"""
-
-# Set seed to garantee reproduc.. of results
 def set_seed(seed):
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -148,7 +125,6 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 
-# Returns the predicted NN or PINN trajectories in a dataframe format given an initial condition
 def get_predicted_trajectory(config, preprocessed_data, model, n_time_steps, initial_state):
     """
     Evaluate the model trajectory from an initial condition and return a DataFrame.
@@ -203,8 +179,7 @@ def get_predicted_trajectory(config, preprocessed_data, model, n_time_steps, ini
         raise
 
 
-# Returns the target RK trajectory in a dataframe format given an initial condition
-def get_target_trajectory(config, n_time_steps, initial_state):
+def get_target_trajectory(config, n_time_steps, initial_state, print_messages=True):
     """
     Evaluate the model trajectory from an initial condition and return a DataFrame.
 
@@ -219,6 +194,9 @@ def get_target_trajectory(config, n_time_steps, initial_state):
         pd.DataFrame: DataFrame containing the predicted states, energy, and time.
     """
     
+    if print_messages:
+        print("\n\n====================    Evaluating Single Initial Condition     ====================")
+
     # To store the evolution of states
     dt_RK = config['dataset_generation']['dt_RK']
     N_RK_STEPS = config['dataset_generation']['N_RK_STEPS']
@@ -332,8 +310,8 @@ def load_checkpoint(model: torch.nn.Module,
         return model, optimizer, 0, losses
 
 
-# Compute the number of NN parameters (weights and biases) based on its architecture
 def compute_parameters(layer_config):
+    # Compute the number of NN parameters (weights and biases) based on its architecture
 
     hidden_layers = layer_config[1:-1]
     n_weights = sum(layer_config[i] * layer_config[i+1] for i in range(len(layer_config) - 1)) # x[layer_0] * x[layer_1] + ... + x[layer_N-1]*x[layer_N]

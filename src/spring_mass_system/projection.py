@@ -3,15 +3,9 @@ import torch
 import numpy as np
 import casadi as ca
 import pandas as pd
-from scipy.stats import shapiro
 from contextlib import contextmanager, redirect_stdout
-from typing import Dict, Any
-from scipy.optimize import minimize
 
-from src.spring_mass_system.utils import set_seed, compute_total_energy, get_target_trajectory, get_predicted_trajectory
-from src.spring_mass_system.plotter.Extra_Figure_1 import plot_output_gaussians
-
-
+from src.spring_mass_system.utils import set_seed, compute_total_energy
 
 set_seed(42)
 
@@ -20,116 +14,6 @@ def suppress_output():
     with open(os.devnull, 'w') as fnull:
         with redirect_stdout(fnull):
             yield
-
-
-
-def perform_shapiro_test(config, all_differences, label):
-
-    # Compute the size of the training set
-    N = all_differences.shape[0]
-    print("N = ", N)
-
-    # For the Shapiro test to work the dataset size must be < 5000
-    if(N > 5000):
-        caped_size = 1000
-        all_differences_caped = all_differences[:caped_size, :]
-    else:
-        all_differences_caped = all_differences
-    
-    x1_diff = np.array(all_differences_caped[:,0])
-    v1_diff = np.array(all_differences_caped[:,1])
-    x2_diff = np.array(all_differences_caped[:,2])
-    v2_diff = np.array(all_differences_caped[:,3])
-
-    # Apply Shapiro-Wilk test
-    stat_x1, p_x1 = shapiro(x1_diff)
-    stat_v1, p_v1 = shapiro(v1_diff)
-    stat_x2, p_x2 = shapiro(x2_diff)
-    stat_v2, p_v2 = shapiro(v2_diff)
-
-    # Compute the mean value for the differences of each variable
-    diff_x1_mean = np.mean(x1_diff)
-    diff_v1_mean = np.mean(v1_diff)
-    diff_x2_mean = np.mean(x2_diff)
-    diff_v2_mean = np.mean(v2_diff)
-
-    # Print results
-    print(label)
-    print(f'x1_diff: Statistics={stat_x1:.2f}, p-value={p_x1:.2e}, mean={diff_x1_mean:.2e}')
-    print(f'v1_diff: Statistics={stat_v1:.2f}, p-value={p_v1:.2e}, mean={diff_v1_mean:.2e}')
-    print(f'x2_diff: Statistics={stat_x2:.2f}, p-value={p_x2:.2e}, mean={diff_x2_mean:.2e}')
-    print(f'v2_diff: Statistics={stat_v2:.2f}, p-value={p_v2:.2e}, mean={diff_v2_mean:.2e}')
-    print(len(x1_diff))
-    plot_output_gaussians(config, x1_diff, v1_diff, x2_diff, v2_diff, label)
-
-def compute_covariance(all_differences):
-    N = all_differences.shape[0]
-
-    # Compute covariances: Cov(x,y) = SUM { (x - x_mean) (y - y_mean) } / (N-1) 
-    covariance_mtx = np.zeros((4, 4))
-
-    x1_diff = np.array(all_differences[:,0])
-    v1_diff = np.array(all_differences[:,1])
-    x2_diff = np.array(all_differences[:,2])
-    v2_diff = np.array(all_differences[:,3])
-
-    # Compute the mean value for the differences of each variable
-    diff_x1_mean = np.mean(x1_diff)
-    diff_v1_mean = np.mean(v1_diff)
-    diff_x2_mean = np.mean(x2_diff)
-    diff_v2_mean = np.mean(v2_diff)
-
-    # Compute the covariances manually
-    for i, (var_i, mean_i) in enumerate(zip([0, 1, 2, 3], [diff_x1_mean, diff_v1_mean, diff_x2_mean, diff_v2_mean])):
-        for j, (var_j, mean_j) in enumerate(zip([0, 1, 2, 3], [diff_x1_mean, diff_v1_mean, diff_x2_mean, diff_v2_mean])):
-            covariance_mtx[i, j] = np.sum((all_differences[:, var_i] - mean_i) * (all_differences[:, var_j] - mean_j)) / (N - 1)
-
-    return torch.tensor(covariance_mtx)
-
-# Compute inverse of covariance matrix on the train set
-def get_inverse_covariance_matrix(config, model_nn, device, preprocessed_data):
-
-    ########################## COMPUTE THE COVARIANCE MATRIX BASED ON THE TRAIN LOADER
-    model_nn.eval()  # Set the model to evaluation mode
-    differences = []
-    train_loader = preprocessed_data['train_loader']
-    
-    with torch.no_grad():
-        for inputs, targets in train_loader:
-            inputs, targets = inputs.to(device), targets.to(device)
-            outputs = model_nn(inputs)
-
-            diff = outputs - targets  # This is (f - p)
-            differences.append(diff)
-    
-    # Concatenate all differences
-    all_differences_train_loader = np.array(torch.cat(differences, dim=0))
-    perform_shapiro_test(config, all_differences_train_loader, "train_loader")
-    covariance_mtx_train_loader = compute_covariance(all_differences_train_loader)
-    inverse_covariance_mtx_train_loader = torch.inverse(covariance_mtx_train_loader)  
-
-
-    ########################## COMPUTE THE COVARIANCE MATRIX BASED ON A TEST TRAJECTORY 
-    input_state = inputs[2].clone().detach()
-    df_target = get_target_trajectory(config, n_time_steps = 300, initial_state = input_state)
-    df_nn   = get_predicted_trajectory(config, preprocessed_data, model_nn,   n_time_steps = 300, initial_state = input_state)
-    x1_diff = np.array(df_nn['x1'] - df_target['x1'])
-    v1_diff = np.array(df_nn['v1'] - df_target['v1'])
-    x2_diff = np.array(df_nn['x2'] - df_target['x2'])
-    v2_diff = np.array(df_nn['v2'] - df_target['v2'])
-    all_differences_trajectory = np.column_stack((x1_diff, v1_diff, x2_diff, v2_diff))
-    perform_shapiro_test(config, all_differences_trajectory, "test trajectory")
-    covariance_mtx_test_traj = compute_covariance(all_differences_trajectory)
-    inverse_covariance_mtx_test_traj = torch.inverse(covariance_mtx_test_traj)  
-
-    
-    return inverse_covariance_mtx_train_loader, inverse_covariance_mtx_test_traj
-
-
-
-
-
-
 
 
 def revert_normalization(scaler, norm_data):
@@ -143,6 +27,7 @@ def revert_normalization(scaler, norm_data):
   
   return not_norm_data
 
+
 def apply_normalization(scaler, not_norm_data):
   
   # Get min and max used for normalization
@@ -153,6 +38,7 @@ def apply_normalization(scaler, not_norm_data):
   feature_norm = (not_norm_data - scaler_min) / (scaler_max - scaler_min) * 2 - 1
 
   return feature_norm
+
 
 def constraint_function( out_tensor_norm, initial_condition_norm, scaler_X, config):
   
@@ -173,6 +59,7 @@ def constraint_function( out_tensor_norm, initial_condition_norm, scaler_X, conf
   residual = E_out - E_init_sx_value
 
   return residual
+
 
 def projection_output(config, y_pred_norm, w_matrix, initial_condition_norm, preprocessed_data):
 
@@ -207,7 +94,6 @@ def projection_output(config, y_pred_norm, w_matrix, initial_condition_norm, pre
     p_opt_norm = sol['x'].toarray().flatten()                        
 
     return np.array(p_opt_norm)
-
 
 
 def get_projection_df(initial_state, N_test, model, w_matrix, preprocessed_data, config, df_nn):
@@ -265,7 +151,3 @@ def get_projection_df(initial_state, N_test, model, w_matrix, preprocessed_data,
     df_proj['time(s)'] = df_nn['time(s)']
     
     return df_proj
-
-
-
-

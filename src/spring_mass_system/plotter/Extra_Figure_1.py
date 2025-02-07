@@ -16,7 +16,7 @@ import matplotlib.gridspec as gridspec
 
 from src.spring_mass_system.utils import savefig
 from src.spring_mass_system.utils import set_seed
-from src.spring_mass_system.pinn import PhysicsInformedNN, train_pinn
+from src.spring_mass_system.pinn_nn import NeuralNetwork, train_model
 
 
 pgf_with_latex = {                      # setup matplotlib to use latex for output
@@ -34,7 +34,7 @@ pgf_with_latex = {                      # setup matplotlib to use latex for outp
 }
 
 plt.rcParams.update(pgf_with_latex)
-
+"""
 
 def plot_output_gaussians(config, x1_diff, v1_diff, x2_diff, v2_diff, label):
 
@@ -100,6 +100,8 @@ def plot_output_gaussians(config, x1_diff, v1_diff, x2_diff, v2_diff, label):
     save_path = os.path.join(output_dir, "extra_figures/Extra_Figure_1_qq_plot"+label)
     savefig(save_path, pad_inches = 0.2)
 
+"""
+
 
 def get_trained_pinn(config: Dict[str, Any], preprocessed_data: Any) -> tuple:
     """
@@ -116,17 +118,14 @@ def get_trained_pinn(config: Dict[str, Any], preprocessed_data: Any) -> tuple:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # Initialize the PINN model and move it to the selected device
-    pinn_model = PhysicsInformedNN(config).to(device)
-    
-    # Define the loss function (Mean Squared Error)
-    loss_fn = nn.MSELoss()
+    pinn_model = NeuralNetwork(config['pinn_model']).to(device)
 
     # Get learning rate from config and initialize Adam optimizer
     learning_rate = config['pinn_model']['learning_rate']
     optimizer = torch.optim.Adam(pinn_model.parameters(), lr=learning_rate)
     
     # Train the PINN model and collect training and validation losses
-    losses = train_pinn(config, pinn_model, preprocessed_data, loss_fn, optimizer, device, checkpoint_dir = None)
+    losses = train_model(config, config['pinn_model'], pinn_model, preprocessed_data, optimizer, device, checkpoint_dir = None)
 
     return pinn_model, losses
 
@@ -223,8 +222,10 @@ def _get_results_pinn_errors_vs_lambda(config, N_lambdas, preprocessed_data):
             return None
 
 
-def plot_pinn_errors_vs_lambda(config, preprocessed_data, N_lambdas):
+def plot_pinn_errors_vs_lambda(config, preprocessed_data, N_lambdas, print_messages=True):
     set_seed(42)
+    if print_messages:
+        print("\n\n====================  Lambda_Physics vs. Validation Loss Study  ====================")
 
     # 
     df_pinn_errors = _get_results_pinn_errors_vs_lambda(config, N_lambdas, preprocessed_data)
@@ -366,9 +367,6 @@ def plot_pinn_errors_vs_lambda(config, preprocessed_data, N_lambdas):
             
         ax_zoom.set_title('Zoom-in', fontsize = 25)
         ax_zoom.set_xticks([0, 0.3, 0.7, 0.99])
-        # Add grid for better readability in log scale
-        #ax_zoom.grid(True, which="both", ls="-", alpha=0.2)
-        #ax_zoom.grid(True, which="minor", ls="--", alpha=0.2)
 
 
     # save the plot to a local directory
@@ -376,4 +374,6 @@ def plot_pinn_errors_vs_lambda(config, preprocessed_data, N_lambdas):
     os.makedirs(output_dir, exist_ok=True)
     save_path = os.path.join(output_dir, f"Figure_pinn_errors_vs_lambda")
     savefig(save_path, pad_inches=0.2)
+    print(f"\nPlot of the Loss values as a function of the Lambda parameter of the PINN model saved as .pdf file to:\n   → {output_dir}.")
+
     
