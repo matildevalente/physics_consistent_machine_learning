@@ -250,7 +250,7 @@ if __name__ == "__main__":
 
     Research Paper: "Physics-consistent machine learning"
     University of Lisbon, Av. Rovisco Pais 1, Lisbon, Portugal.
-    ──────────────────────────────────────────────────────────────────────────────
+
     """)
     
     print("──────────────────────────────────────────────────────────────────────────────")
