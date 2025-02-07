@@ -288,9 +288,6 @@ def Figure_6b(config, data_preprocessing_info, df_discrete, df_continuum, test_c
         ax.plot([], [], '--', color='green', markersize=5, label=f'NN projection', linewidth=3)
         ax.plot(discrete_inputs[:,0], discrete_targets[:,i], 'x', markeredgecolor='red',markeredgewidth=2, color='red', label=f'LoKI (target)', markersize=10, zorder=10)
 
-        # Combine all custom handles for the legend
-        ax.legend(fontsize="24")
-
         ax.set_xlabel(r"Pressure (Pa)", fontsize=24, fontweight='bold')
         ax.set_ylabel(output_labels[i], fontsize=24, fontweight='bold')
 
@@ -315,7 +312,6 @@ def Figure_6b(config, data_preprocessing_info, df_discrete, df_continuum, test_c
     error_normalized_df = pd.DataFrame(error_normalized_data)
     csv_save_path = os.path.join(output_dir, "error_normalized_data.csv")
     error_normalized_df.to_csv(csv_save_path, index=False)
-
 
 # create a configuration file for the chosen architecture
 def generate_config_(config, options):
