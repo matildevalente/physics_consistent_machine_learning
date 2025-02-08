@@ -1,4 +1,3 @@
 .DS_Store
-
-# Python bytecode
 __pycache__/
+pcml_venv/

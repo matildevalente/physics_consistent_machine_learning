@@ -4,6 +4,12 @@ Data-driven machine learning models often require extensive datasets, which can 
 
 For more information, please refer to the following: ()
 
+## Requirements
+The required dependencies are listed in `requirements.txt`. Install them using pip:
+```bash
+pip install -r requirements.txt
+```
+
 
 # Usage
 1. Configure the system parameters in the config file
@@ -17,11 +23,6 @@ python SpringMassSystem.py
 ```
 
 
-## Requirements
-The required dependencies are listed in `requirements.txt`. Install them using pip:
-```bash
-pip install -r requirements.txt
-```
 
 
 ### Project Structure
