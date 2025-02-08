@@ -1,21 +1,18 @@
 import os
 import yaml
 import torch
-import random
 import logging
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 import torch.nn as nn
 from typing import Dict, Any, Tuple
 
-from clean import flush_model_artifacts
-from src.spring_mass_system.utils import set_seed, get_predicted_trajectory, get_target_trajectory, load_checkpoint, compute_parameters
+from clean import flush_model_artifacts, flush_data, flush_lambda_study
+from src.spring_mass_system.utils import set_seed, get_predicted_trajectory, get_target_trajectory, load_checkpoint
 from src.spring_mass_system.dataset_gen import generate_dataset
 from src.spring_mass_system.data_prep import preprocess_data
-from src.spring_mass_system.nn import NeuralNetwork, train_nn, plot_loss_curves_nn, optimize_architecture_nn
-from src.spring_mass_system.pinn import PhysicsInformedNN, train_pinn, plot_loss_curves_pinn #, optimize_pinn_architecture
-from src.spring_mass_system.projection import get_inverse_covariance_matrix, get_projection_df #get_projected_trajectory, 
+from src.spring_mass_system.pinn_nn import NeuralNetwork, train_model, plot_loss_curves_
+from src.spring_mass_system.projection import get_projection_df 
 from src.spring_mass_system.plotter.Figure_2b import plot_predicted_trajectory_vs_target
 from src.spring_mass_system.plotter.Figure_2c import plot_predicted_energies_vs_target
 from src.spring_mass_system.plotter.Figure_2d import plot_bar_plot
@@ -23,7 +20,7 @@ from src.spring_mass_system.plotter.Figure_3 import plot_several_initial_conditi
 from src.spring_mass_system.plotter.Extra_Figure_1 import plot_pinn_errors_vs_lambda
 
 # Load the configuration file
-def load_config(retrain_flag, config_path):
+def load_config(retrain_flag, regenerate_data_flag, rerun_lambda_study, config_path):
     
     # Load the configuration file
     with open(config_path, 'r') as f:
@@ -31,9 +28,16 @@ def load_config(retrain_flag, config_path):
 
         # overwrite the manually defined retraining configurations with the user input
         if(retrain_flag is not None):
+            # if the dataset was flushed
+            config['dataset_generation']['GENERATE_DATASET'] = regenerate_data_flag
+
+            # if the checkpoints and results were flushed
             config['nn_model']['RETRAIN_MODEL'] = retrain_flag
             config['pinn_model']['RETRAIN_MODEL'] = retrain_flag
             config['fig_3_options']['rerun_results'] = retrain_flag
+
+            # if the results from the lambda_physics analysis were flushed
+            config['pinn_model']['RUN_LAMBDA_STUDY'] = rerun_lambda_study
 
         return config
 
@@ -55,13 +59,13 @@ def load_or_generate_dataset(config):
     else:
         raise ValueError("Invalid value for GENERATE_DATASET in config. Must be True or False.")
 
+
 # 
 def get_trained_nn(config: Dict[str, Any], preprocessed_data: Any) -> Tuple[nn.Module, Tuple[list, list]]:
     set_seed(42)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    nn_model = NeuralNetwork(config).to(device)
-    loss_fn = nn.MSELoss()
+    nn_model = NeuralNetwork(config['nn_model']).to(device)
     learning_rate = config['nn_model']['learning_rate']
     optimizer = torch.optim.Adam(nn_model.parameters(), lr=learning_rate)
 
@@ -70,8 +74,7 @@ def get_trained_nn(config: Dict[str, Any], preprocessed_data: Any) -> Tuple[nn.M
     checkpoint_path = os.path.join(checkpoint_dir, 'latest_checkpoint.pth')
 
     if config['nn_model']['RETRAIN_MODEL']:
-        train_losses, val_losses = train_nn(config, nn_model, preprocessed_data, loss_fn, optimizer, device, checkpoint_dir)
-        return nn_model, (train_losses, val_losses), device
+        losses = train_model(config, config['nn_model'], nn_model, preprocessed_data, optimizer, device, checkpoint_dir)
     else:
         try:
             nn_model, optimizer, _, losses = load_checkpoint(nn_model, optimizer, checkpoint_path)
@@ -79,17 +82,18 @@ def get_trained_nn(config: Dict[str, Any], preprocessed_data: Any) -> Tuple[nn.M
             raise ValueError("Checkpoint not found. Set RETRAIN_MODEL to True or provide a valid checkpoint.")
         
         if not losses['train_losses'] or not losses['val_losses']:
+            losses = []
             print("Warning: Loss history not found in checkpoint. Returning empty lists for losses.")
-            train_losses, val_losses = [], []
 
-        return nn_model, (losses['train_losses'], losses['val_losses']), device
+    return nn_model, losses
+
 
 #   
 def get_trained_pinn(config: Dict[str, Any], preprocessed_data: Any, checkpoint_dir) -> tuple:
+    set_seed(42)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    pinn_model = PhysicsInformedNN(config).to(device)
-    loss_fn = nn.MSELoss()
+    pinn_model = NeuralNetwork(config['pinn_model']).to(device)
     learning_rate = config['pinn_model']['learning_rate']
     optimizer = torch.optim.Adam(pinn_model.parameters(), lr=learning_rate)
     
@@ -97,7 +101,7 @@ def get_trained_pinn(config: Dict[str, Any], preprocessed_data: Any, checkpoint_
     checkpoint_path = os.path.join(checkpoint_dir, 'latest_checkpoint.pth')
     
     if config['pinn_model']['RETRAIN_MODEL']:
-        losses = train_pinn(config, pinn_model, preprocessed_data, loss_fn, optimizer, device, checkpoint_dir)
+        losses = train_model(config,config['pinn_model'], pinn_model, preprocessed_data, optimizer, device, checkpoint_dir)
     else:
         try:
            pinn_model, optimizer, _, losses = load_checkpoint(pinn_model, optimizer, checkpoint_path) 
@@ -105,14 +109,17 @@ def get_trained_pinn(config: Dict[str, Any], preprocessed_data: Any, checkpoint_
             raise ValueError("Checkpoint not found. Set RETRAIN_MODEL to True or provide a valid checkpoint.")
         
         if not losses['train_losses'] or not losses['val_losses']:
+            losses = []
             print("Warning: Loss history not found in checkpoint. Returning empty lists for losses.")
-
+    
     return pinn_model, losses
 
+
 # Plot the loss curves for the NN and PINN models
-def plot_loss_curves(config: Dict[str, Any], nn_losses: tuple, pinn_losses: Dict[str, Any]):
-    plot_loss_curves_nn(config, *nn_losses)
-    plot_loss_curves_pinn(config, pinn_losses)
+def plot_loss_curves(config: Dict[str, Any], nn_losses: Dict[str, Any], pinn_losses: Dict[str, Any]):
+    plot_loss_curves_(config, nn_losses, model_name = "nn")
+    plot_loss_curves_(config, pinn_losses, model_name = "pinn")
+
 
 # retrieves initial conditions from the test loader
 def get_inputs_from_loader(loader):
@@ -121,7 +128,7 @@ def get_inputs_from_loader(loader):
     return x_test
 
 
-def main(retrain_flag):
+def main(retrain_flag, regenerate_data_flag, rerun_lambda_study):
     try:
         # /// 1. SETUP LOGGING ///
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -131,7 +138,7 @@ def main(retrain_flag):
         set_seed(42)
 
         # /// 3. LOAD CONFIGURATION FILE /// 
-        config = load_config(retrain_flag, 'configs/spring_mass_system_config.yaml')
+        config = load_config(retrain_flag, regenerate_data_flag, rerun_lambda_study, 'configs/spring_mass_system_config.yaml')
 
         # /// 4. EXTRACT DATASET ///
         df_dataset = load_or_generate_dataset(config)
@@ -141,11 +148,12 @@ def main(retrain_flag):
         test_initial_conditions = get_inputs_from_loader(preprocessed_data['test_loader'])
         
         # /// 6. TRAIN THE NEURAL NETWORK (NN) ///
-        nn_model, nn_losses, device_nn = get_trained_nn(config, preprocessed_data)
+        nn_model, nn_losses = get_trained_nn(config, preprocessed_data)
 
         # /// 7. TRAIN THE PHYSICS-INFORMED NEURAL NETWORK (PINN) ///
-        plot_pinn_errors_vs_lambda(config, preprocessed_data, N_lambdas = 25)
-        pinn_model, pinn_losses = get_trained_pinn(config, preprocessed_data, checkpoint_dir=os.path.join('output', 'spring_mass_system', 'checkpoints', 'pinn'))
+        checkpoint_dir=os.path.join('output', 'spring_mass_system', 'checkpoints', 'pinn')
+        plot_pinn_errors_vs_lambda(config, preprocessed_data, N_lambdas = 100)
+        pinn_model, pinn_losses = get_trained_pinn(config, preprocessed_data, checkpoint_dir)
         
         # /// 8. PLOT LOSS CURVES FOR THE NN AND PINN ///
         plot_loss_curves(config, nn_losses, pinn_losses)
@@ -167,6 +175,7 @@ def main(retrain_flag):
         # /// 10. EVALUATE SEVERAL INITIAL CONDITIONS (Fig. 3 & Table 1 & Table 2) 
         n_time_steps = 200
         plot_several_initial_conditions(config, preprocessed_data, nn_model, pinn_model, test_initial_conditions, n_time_steps, N_initial_conditions = 100)
+        
 
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
@@ -186,33 +195,48 @@ if __name__ == "__main__":
 
     Research Paper: "Physics-consistent machine learning"
     University of Lisbon, Av. Rovisco Pais 1, Lisbon, Portugal.
-    ──────────────────────────────────────────────────────────────────────────────
+
     """)
     
     print("──────────────────────────────────────────────────────────────────────────────")
     while True:
         print("System Configuration:")
-        print("1. Retrain model (Fresh plots and tables)")
-        print("2. Use existing model (Load pre-computed results & trained weights)")
-        print("3. Define configurations manually using config files")
+        print("1. Regenerate dataset and retrain model (Fresh plots and tables)")
+        print("2. Only retrain model (Fresh plots and tables)")
+        print("3. Use existing model (Load pre-computed results & trained weights)")
+        print("4. Define configurations manually using config files")
 
-        response = input("\nPlease select configuration (1,2,3): ").strip()
-        
+        response = input("\nPlease select configuration (1,2,3,4): ").strip()
+
         if response == '1':
+            # flush dataset and the current checkpoints, plots and tables 
+            regenerate_data = flush_data()
+            retrain = flush_model_artifacts('spring')
+            rerun_lambda_study = flush_lambda_study()
+            
+            print("──────────────────────────────────────────────────────────────────────────────\n")
+            main(retrain, regenerate_data, rerun_lambda_study)
+            break
+        
+        elif response == '2':
+            regenerate_data = False
             # flush the current checkpoints, plots and tables
             retrain = flush_model_artifacts('spring')
+            rerun_lambda_study = flush_lambda_study()
             print("──────────────────────────────────────────────────────────────────────────────\n")
-            main(retrain)
+            main(retrain, regenerate_data, rerun_lambda_study)
             break
             
-        elif response == '2':
+        elif response == '3':
+            regenerate_data = False
             retrain = False
+            rerun_lambda_study = False
             print("\n[INFO] Using existing model weights and pre-computed results ...")
             print("──────────────────────────────────────────────────────────────────────────────\n")
-            main(retrain)
+            main(retrain, regenerate_data, rerun_lambda_study)
             break
 
-        elif response == '3':
+        elif response == '4':
             print("\n[INFO] Using manually defined configurations ...")
             print("──────────────────────────────────────────────────────────────────────────────\n")
             main(None)
