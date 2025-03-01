@@ -14,7 +14,7 @@ from src.ltp_system.pinn_nn import get_trained_bootstraped_models, load_checkpoi
 from src.ltp_system.projection import compute_projection_results, compute_mape_physical_laws, compute_errors_physical_laws_loki, compute_rmse_physical_laws
 from src.ltp_system.plotter.loss_curves import loss_curves
 from src.ltp_system.plotter.barplots import Figure_4d, Figure_4a, Figure_4b
-from src.ltp_system.plotter.scaling_studies import run_data_scaling_study, run_ablation_study_architectures, Figure_6a_mean_all_outputs, Figure_6a_specific_outputs, Figure_6e_mean_all_outputs, Figure_6e_specific_outputs
+from src.ltp_system.plotter.scaling_studies import run_data_scaling_study, run_ablation_study_architectures, Figure_6a_mean_all_outputs, Figure_6a_specific_outputs, Figure_6e_mean_all_outputs, Figure_6e_specific_outputs, Figure_computation_times
 from src.ltp_system.plotter.outputs_vs_pressure import run_figures_output_vs_pressure_diff_datasets, run_figures_output_vs_pressure_diff_architectures
 
 
@@ -94,9 +94,10 @@ def main(retrain_flag):
             'log_random_architectures': True,
             'n_hidden_layers': n_hidden_layers, 
         }        
-        df_results_6a_all, df_results_6a_specific = run_ablation_study_architectures(config, large_dataset_path, options)
+        df_results_6a_all, df_results_6a_specific, _ = run_ablation_study_architectures(config, large_dataset_path, options)
         Figure_6a_mean_all_outputs(options, df_results_6a_all)
         Figure_6a_specific_outputs(options, df_results_6a_specific, output_labels)
+        Figure_computation_times(options, case = 1, file_path=options['output_dir'] + "table_results/computation_times.csv")
         
         # PLOTS OF OUTPUTS AS A FUNCTION OF PRESSURE FOR DIFFERENT POINTS IN FIG. 6A AND FIG. 6D
         target_data_file_path = 'data/ltp_system/const_current/data_50_points_30mA.txt'
@@ -116,10 +117,11 @@ def main(retrain_flag):
         
         # Get the list of files to analyze
         dataset_sizes = [20, 50, 100, 200, 400, 600, 800, 1000, 1500, 2000, 2500]
-        df_results_6e_all, df_results_6e_specific = run_data_scaling_study(config, large_dataset_path, dataset_sizes, options)
+        df_results_6e_all, df_results_6e_specific, _ = run_data_scaling_study(config, large_dataset_path, dataset_sizes, options)
         Figure_6e_mean_all_outputs(options, df_results_6e_all)
         Figure_6e_specific_outputs(options, df_results_6e_specific, output_labels)
-        
+        Figure_computation_times(options, case = 2, file_path=options['output_dir'] + "table_results/computation_times.csv")
+
         # PLOTS OF OUTPUTS AS A FUNCTION OF PRESSURE FOR DIFFERENT POINTS IN FIG. 6A AND FIG. 6D
         target_data_file_path = 'data/ltp_system/const_current/data_50_points_30mA.txt'
         run_figures_output_vs_pressure_diff_datasets(config, options, dataset_sizes, target_data_file_path)
