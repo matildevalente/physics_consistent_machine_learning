@@ -274,7 +274,6 @@ def Figure_6b(config, data_preprocessing_info, df_discrete, df_continuum, test_c
 
         # Plot 1: Scatter plot comparing ne_model and calculated ne
         fig, ax = plt.subplots(figsize=(7, 6))
-        ax.legend(fontsize='large', loc='upper right')
         ax.tick_params(axis='both', which='major', labelsize=15, width=2)
         ax.tick_params(axis='both', which='minor', labelsize=15, width=2)
         ax.xaxis.set_tick_params(which='both', direction='in', top=True, bottom=True)
@@ -288,6 +287,7 @@ def Figure_6b(config, data_preprocessing_info, df_discrete, df_continuum, test_c
         ax.plot([], [], '--', color='green', markersize=5, label=f'NN projection', linewidth=3)
         ax.plot(discrete_inputs[:,0], discrete_targets[:,i], 'x', markeredgecolor='red',markeredgewidth=2, color='red', label=f'LoKI (target)', markersize=10, zorder=10)
 
+        ax.legend(fontsize=20)#, loc='upper right')
         ax.set_xlabel(r"Pressure (Pa)", fontsize=24, fontweight='bold')
         ax.set_ylabel(output_labels[i], fontsize=24, fontweight='bold')
 

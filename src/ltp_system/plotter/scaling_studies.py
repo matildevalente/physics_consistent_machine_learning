@@ -1,6 +1,7 @@
 import io
 import os
 import csv
+import time
 import pickle
 import torch
 import random
@@ -12,7 +13,11 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from typing import Dict, Any, Tuple
+from scipy.optimize import curve_fit
+from scipy.interpolate import make_interp_spline
 from contextlib import redirect_stdout, redirect_stderr
+from statsmodels.nonparametric.smoothers_lowess import lowess
+
 
 from src.ltp_system.utils import savefig, set_seed, load_dataset, select_random_rows, sample_dataset
 from src.ltp_system.data_prep import DataPreprocessor, LoadDataset, setup_dataset_with_preproprocessing_info
@@ -239,6 +244,8 @@ def run_experiment(config_original, large_dataset_path, dataset_sizes, options, 
     os.makedirs(table_dir, exist_ok=True) # create the directory if it doesn't exist
     all_results_file_path = os.path.join(table_dir, 'all_outputs_mean_results.csv')
     specific_outputs_file_path = os.path.join(table_dir, 'specific_outputs_results.csv')
+    computation_times_file_path = os.path.join(table_dir, 'computation_times.csv')
+
     n_samples_per_size = options['n_samples'] # number of different random samples for each dataset size
     ###################################################################################################
 
@@ -250,10 +257,20 @@ def run_experiment(config_original, large_dataset_path, dataset_sizes, options, 
     file_path = os.path.join(options['checkpoints_dir'], "data_preprocessing_info.pkl")
     with open(file_path, 'wb') as file:
         pickle.dump(data_preprocessing_info, file)  
+    ###################################################################################################    
+    
+    ################### 3. INITIALIZE DATAFRAME WITH COMPUTATION TIMES ANALYSIS  ######################
+    df_computation_times = pd.DataFrame(columns=[        
+        'architectures','dataset_sizes', 'loki_computation_time',
+        'nn_training_time','nn_evaluation_time','proj_evaluation_time',
+        'rmse_nn_overall','rmse_proj_nn_overall',
+        'specific_outputs',
+        'mean_rmse_nn_specific','mean_rmse_proj_nn_specific'
+    ])
+
     ###################################################################################################
 
-
-    ###################################### 3. GET RESULTS FOR EACH DATASET SIZE #######################
+    ###################################### 4. GET RESULTS FOR EACH DATASET SIZE #######################
     # if the model is being retrained, compute the results for each dataset size
     if options['RETRAIN_MODEL']:
         all_outputs_results = []
@@ -267,6 +284,11 @@ def run_experiment(config_original, large_dataset_path, dataset_sizes, options, 
             
             # initialize the results for the specific outputs
             specific_outputs_mapes_nn, specific_outputs_rmses_nn, specific_outputs_mapes_proj, specific_outputs_rmses_proj = [], [], [], []
+            
+            # times
+            list_nn_training_times = []
+            list_nn_evaluation_times = []
+            list_proj_nn_evaluation_times = []
             
             # for each dataset set create different samples
             for sample_i in range(n_samples_per_size):
@@ -284,14 +306,19 @@ def run_experiment(config_original, large_dataset_path, dataset_sizes, options, 
                 val_loader = torch.utils.data.DataLoader(val_data_norm, batch_size=config_['nn_model']['batch_size'], shuffle=True)
 
                 # 5. train the neural network model (nn) on the sampled training data
+                start_nn_training_time     = time.time()
                 nn_models, _, _, _ = get_trained_nn(options, config_, data_preprocessing_info, idx_dataset, sample_i, train_data_norm, val_loader)
+                list_nn_training_times.append(time.time() - start_nn_training_time)
 
                 # 6. perform copies of the test inputs and test targets to avoid modifying them.
                 test_inputs_norm_  = test_inputs_norm.clone() 
                 test_targets_norm_ = test_targets_norm.clone() 
 
                 # 7. use the trained nn to make predictions on the test inputs - get the normalized model predictions 
+                start_nn_evaluation_time   = time.time()
                 nn_predictions_norm =  get_average_predictions(nn_models, torch.tensor(test_inputs_norm_))
+                # append counted time
+                list_nn_evaluation_times.append(time.time() - start_nn_evaluation_time)
                 nn_pred_uncertainties =  get_predictive_uncertainty(nn_models, torch.tensor(test_inputs_norm_)) # for each point prediction gives an uncertainty value
                 
                 # 8. perform copies of the test inputs and test targets to avoid modifying them.
@@ -309,7 +336,10 @@ def run_experiment(config_original, large_dataset_path, dataset_sizes, options, 
                 specific_outputs_rmses_nn.append(specific_outputs_rmses_nn_j)
 
                 # 10. project the nn predictions and compute the mape, rmse and uncertainties (sigma/sqrt(n))
+                start_proj_evaluation_time = time.time()
                 proj_mape_j, proj_rmse_j, specific_outputs_proj_mapes_j, specific_outputs_proj_rmses_j = evaluate_projection(index_output_features, nn_predictions_norm, test_targets_norm_, test_inputs_norm_, data_preprocessing_info, options['w_matrix'])
+                # append counted time
+                list_proj_nn_evaluation_times.append(time.time() - start_proj_evaluation_time)
                 proj_mapes.append(proj_mape_j)
                 proj_rmses.append(proj_rmse_j)
                 specific_outputs_mapes_proj.append(specific_outputs_proj_mapes_j)
@@ -337,7 +367,7 @@ def run_experiment(config_original, large_dataset_path, dataset_sizes, options, 
                 )
             )
             
-            # /// CREATE THE DATAFRAME FOR THE RESULTS CONCERNING THE SPECIFIC OUTPUTS ///
+            # /// 14. CREATE THE DATAFRAME FOR THE RESULTS CONCERNING THE SPECIFIC OUTPUTS ///
             if options['extract_results_specific_outputs'] is not None:
                 specific_outputs_rmses_proj = np.array(specific_outputs_rmses_proj)
                 specific_outputs_mapes_proj = np.array(specific_outputs_mapes_proj) 
@@ -363,6 +393,18 @@ def run_experiment(config_original, large_dataset_path, dataset_sizes, options, 
                     row = [dataset_size, output_feature, specific_outputs_mapes_nn_overall, specific_outputs_mapes_proj_overall, specific_outputs_rmses_nn_overall, specific_outputs_rmses_proj_overall]
                     specific_outputs_rows.append(row)
         
+            # 15. append extract computation times
+            n_specific_outputs = len(index_output_features)
+            df_computation_times = append_row_df_computation_times(
+                df_computation_times, config_original, config_, options, dataset_size, 
+                nn_training_time = sum(list_nn_training_times), 
+                nn_evaluation_time = sum(list_nn_evaluation_times), 
+                proj_evaluation_time = sum(list_proj_nn_evaluation_times), 
+                rmse_nn_overall = nn_rmse_overall, rmse_proj_nn_overall = proj_rmse_overall, 
+                rmse_specific_outputs = specific_outputs_rows[-n_specific_outputs:] # only pass the last n_specific_outputs lists of errors corresponding to this iteration
+            )
+
+
         # STORE THE RESULTS FOR THE MEAN OF ALL OUTPUTS #########################################################
         dataset_sizes, nn_mapes, nn_mape_uncertainties, proj_mapes, proj_mape_uncertainties, nn_rmses, nn_rmse_uncertainties, proj_rmses, proj_rmse_uncertainties = zip(*all_outputs_results)
         data_all_outputs = {
@@ -389,14 +431,50 @@ def run_experiment(config_original, large_dataset_path, dataset_sizes, options, 
             df_specific_outputs.to_csv(specific_outputs_file_path, index=False)
         
         # return results
-        return df_all_outputs, df_specific_outputs
+        return df_all_outputs, df_specific_outputs, df_computation_times
     
     else:
         df_all_outputs = pd.read_csv(all_results_file_path)
         df_specific_outputs = pd.read_csv(specific_outputs_file_path)
+        df_computation_times = pd.read_csv(computation_times_file_path)
         
-        return df_all_outputs, df_specific_outputs
+        return df_all_outputs, df_specific_outputs, df_computation_times
 
+# retrieves relevant computation times for the analysis: computation time vs. errors
+def append_row_df_computation_times(df_computation_times, config_original, config_, options, dataset_size, 
+                                   nn_training_time, nn_evaluation_time, proj_evaluation_time, 
+                                   rmse_nn_overall, rmse_proj_nn_overall, rmse_specific_outputs):
+    
+    # time loki takes to generate 100 sample points
+    loki_reference_time = config_original['dataset_generation']['loki_computation_time_100_points']
+
+    # STORE THE RESULTS FOR THE SPECIFIC OUTPUTS
+    list_rmses_nn_specific = []
+    list_rmse_proj_nn_specific = []
+    if options['extract_results_specific_outputs'] is not None:
+        for output_idx in range(len(options['extract_results_specific_outputs'])):
+            list_rmses_nn_specific.append(rmse_specific_outputs[output_idx][4])
+            list_rmse_proj_nn_specific.append(rmse_specific_outputs[output_idx][5])
+
+    # Create a new row as a dictionary
+    row = {
+        'architectures'        : config_['nn_model']['hidden_sizes'],
+        'dataset_sizes'        : dataset_size,
+        'loki_computation_time': (dataset_size * loki_reference_time) / 100,
+        'nn_training_time'     : nn_training_time,
+        'nn_evaluation_time'   : nn_evaluation_time,
+        'proj_evaluation_time' : proj_evaluation_time,
+        'rmse_nn_overall'      : rmse_nn_overall,
+        'rmse_proj_nn_overall' : rmse_proj_nn_overall,
+        'specific_outputs'     : options['extract_results_specific_outputs'],
+        'mean_rmse_nn_specific'    : sum(list_rmses_nn_specific) / len(list_rmses_nn_specific),
+        'mean_rmse_proj_nn_specific': sum(list_rmse_proj_nn_specific) / len(list_rmse_proj_nn_specific)
+    }
+    
+    # Add the row to the DataFrame (using pandas concat instead of append)
+    df_computation_times = pd.concat([df_computation_times, pd.DataFrame([row])], ignore_index=True)
+    
+    return df_computation_times
 
 #///////////////////////////////////////////////////////////////////////////////////////#
 #///////////////////////////// FUNCTIONS USED FOR PLOTTING  ////////////////////////////#
@@ -534,6 +612,128 @@ def create_specific_output_plot(options, options_plot_mape, options_plot_rmse,  
 
     print(f"\nResults of RMSE of specific outputs ({specific_outputs}) saved as .pdf file to:\n   → {output_dir}.")
 
+#
+def Figure_computation_times(options, case, file_path):
+    
+    # Exponential fitting function: y = a * exp(b * x)
+    def exp_fit(x, y, num_points=100):
+        x, y = np.array(x), np.array(y)
+
+        # Remove zero or negative values (logarithm issue)
+        valid_indices = y > 0
+        x, y = x[valid_indices], y[valid_indices]
+
+        log_y = np.log(y)  # Transform y to log scale
+        b, log_a = np.polyfit(x, log_y, 1)  # Linear fit in log-space
+        a = np.exp(log_a)  # Convert back to original space
+
+        # Generate smooth interpolation
+        x_new = np.linspace(min(x), max(x), num_points)
+        y_new = a * np.exp(b * x_new)  # Compute exponential values
+
+        return x_new, y_new
+    
+    def power_law_fit(x, y, num_points=100):
+        x, y = np.array(x), np.array(y)
+
+        # Remove zero or negative values to avoid log issues
+        valid_indices = (x > 0) & (y > 0)
+        x, y = x[valid_indices], y[valid_indices]
+
+        # Define power law function y = a * x^b
+        def power_law(x, a, b):
+            return a * np.power(x, b)
+
+        # Initial parameter guess
+        initial_guess = [max(y), -0.5]  # Start with reasonable defaults
+
+        # Fit the power law function
+        popt, _ = curve_fit(power_law, x, y, p0=initial_guess, maxfev=5000)
+
+        # Generate smooth fitted curve
+        x_fitted = np.linspace(min(x), max(x), num_points)
+        y_fitted = power_law(x_fitted, *popt)
+
+        return x_fitted, y_fitted
+
+    # Read the CSV file
+    df = pd.read_csv(file_path)
+
+    # Initialize the figure
+    fig, ax1 = plt.subplots(figsize=(6, 5))
+    
+    # define style and extract data for ablation study plot
+    if(case == 1):
+        # style and data
+        title = "Ablation Study"
+        name = "ablation_study"
+        total_nn_time = df['nn_training_time'] + df['nn_evaluation_time']
+        total_nn_proj_time = total_nn_time + df['proj_evaluation_time']
+        rmse_nn_specific = df['mean_rmse_nn_specific']
+        rmse_proj_nn_specific = df['mean_rmse_proj_nn_specific']
+        # format y ticks
+        ax1.set_ylim(0, 30e-2) 
+        ax1.set_yticks([5e-2, 10e-2, 15e-2, 20e-2, 25e-2])    
+        ax1.set_yticklabels(['5', '10', '15', '20', '25']) 
+        # format x ticks
+        ax1.set_xticks([25, 50, 75, 100, 125])    
+        ax1.set_xticklabels(['25', '50', '75', '100', '125']) 
+        # fit exponential to data
+        x_nn_interp, y_nn_interp = exp_fit(total_nn_time, rmse_nn_specific)
+        x_proj_interp, y_proj_interp = exp_fit(total_nn_proj_time, rmse_proj_nn_specific)
+    # define style and extract data for small samples plot
+    elif(case == 2):
+        # style
+        title = "Small Samples"
+        name = "small_samples"
+        total_nn_time = df['nn_training_time'] + df['nn_evaluation_time']
+        total_nn_proj_time = total_nn_time + df['proj_evaluation_time']
+        rmse_nn_specific = df['mean_rmse_nn_specific']
+        rmse_proj_nn_specific = df['mean_rmse_proj_nn_specific']
+        # format y ticks
+        ax1.set_ylim(0, 20e-2) 
+        ax1.set_yticks([5e-2, 10e-2, 15e-2])    
+        ax1.set_yticklabels(['5', '10', '15']) 
+        # format x ticks
+        ax1.set_xticks([100, 500, 1000, 1500, 2000])    
+        ax1.set_xticklabels(['100', '500', '1000', '1500', '2000']) 
+        # fit exponential to data
+        x_nn_interp, y_nn_interp = power_law_fit(total_nn_time, rmse_nn_specific)
+        x_proj_interp, y_proj_interp = power_law_fit(total_nn_proj_time, rmse_proj_nn_specific)
+    else:
+        print("Error please define in the main file either case 1 or 2.")
+    
+    # Plot RMSE for NN and NN projection
+    ax1.set_title(title, fontsize=24, fontweight='bold', pad=15)
+    ax1.set_xlabel('Computation Time (s)', fontsize=24)
+    ax1.set_ylabel('RMSE', fontsize=24, fontweight='bold', labelpad=15)
+    
+    # Plot interpolated polynomial curves
+    ax1.plot(x_nn_interp, y_nn_interp, '-', color=models_parameters['NN']['color'], label='NN (interpolated)')
+    ax1.plot(x_proj_interp, y_proj_interp, '-', color=models_parameters['proj_nn']['color'], label='NN projection (interpolated)')
+    
+    # plot nn and proj results
+    ax1.plot(total_nn_time, rmse_nn_specific, 'o', color=models_parameters['NN']['color'], label='NN')
+    ax1.plot(total_nn_proj_time, rmse_proj_nn_specific,'o', color=models_parameters['proj_nn']['color'], label='NN projection')
+    ax1.tick_params(axis='y', labelsize=24, width = 2, length = 6)
+    ax1.tick_params(axis='x', labelsize=24, width = 2, length = 6)
+        
+    # Add scientific notation label at the top of the y-axis
+    plt.minorticks_off()
+    ax1.text(-0.22, 1.08, r'($\times10^{-2}$)', transform=plt.gca().transAxes, fontsize=24, ha='left', va='center')
+    ax1.spines['top'].set_linewidth(2)
+    ax1.spines['right'].set_linewidth(2)
+    ax1.spines['bottom'].set_linewidth(2)
+    ax1.spines['left'].set_linewidth(2)
+    if(case == 2):
+        ax1.legend(fontsize=16,  bbox_to_anchor=(1.85, 0.8), ncol=1)
+    # Save figure
+    output_dir = options['output_dir'] + "plots"
+    os.makedirs(output_dir, exist_ok=True)
+    save_path = os.path.join(output_dir, f"computation_times_specific_outputs_{name}.pdf")
+    fig.savefig(save_path, pad_inches=0.2, format='pdf', dpi=300, bbox_inches='tight')
+
+    print(f"\nPlot of computation across specific outputs saved as .pdf file to:\n   → {output_dir}.")
 
 #///////////////////////////////////////////////////////////////////////////////////////#
 #///////////////////// ABLATION STUDY (different architectures)/////////////////////////#
@@ -626,12 +826,22 @@ def run_ablation_study_architectures(config_original, large_dataset_path, option
     os.makedirs(table_dir, exist_ok=True)
     all_results_file_path = os.path.join(table_dir, 'all_outputs_mean_results.csv')
     specific_outputs_file_path = os.path.join(table_dir, 'specific_outputs_results.csv')
+    computation_times_file_path = os.path.join(table_dir, 'computation_times.csv')
     ###################################################################################################
 
     ###################################### 2. GET RANDOM ARCHITECTURES  ###############################
     architectures_file_path = os.path.join(table_dir, 'architectures.csv')
     random_architectures_list = get_random_architectures(options, architectures_file_path)
     ###################################################################################################
+
+    #
+    df_computation_times = pd.DataFrame(columns=[
+        'architectures','dataset_sizes', 'loki_computation_time',
+        'nn_training_time','nn_evaluation_time','proj_evaluation_time',
+        'rmse_nn_overall','rmse_proj_nn_overall',
+        'specific_outputs',
+        'mean_rmse_nn_specific','mean_rmse_proj_nn_specific'
+    ])
 
     ###################################### 4. GET RESULTS FOR EACH ARCHITECTURE SIZE #######################
     # if the model is being retrained, compute the results for each dataset size
@@ -653,7 +863,7 @@ def run_ablation_study_architectures(config_original, large_dataset_path, option
             options['checkpoints_dir'] = checkpoint_dir + "architecture_" + str(idx) + "/"
 
             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-                df_results_all_architecture_idx, df_results_specific_architecture_idx = run_experiment(
+                df_results_all_architecture_idx, df_results_specific_architecture_idx, df_computation_times_idx = run_experiment(
                     config_, 
                     large_dataset_path, 
                     dataset_size, 
@@ -672,7 +882,7 @@ def run_ablation_study_architectures(config_original, large_dataset_path, option
             rmses_proj             = df_results_all_architecture_idx['proj_rmses'][0]
             uncertanties_rmse_proj = df_results_all_architecture_idx['proj_rmse_uncertainties'][0]
             rows_mean_all_outputs.append([hidden_sizes, num_params, mapes_nn, uncertanties_mape_nn, mapes_proj, uncertanties_mape_proj, rmses_nn, uncertanties_rmse_nn, rmses_proj, uncertanties_rmse_proj])
-            
+
             # append results for specific outputs
             if options['extract_results_specific_outputs'] is not None:
                 # iterate over each output feature 
@@ -683,6 +893,9 @@ def run_ablation_study_architectures(config_original, large_dataset_path, option
                     rmses_proj = df_results_specific_architecture_idx['proj_rmses'][output_idx]
 
                     rows_specific_outputs.append([hidden_sizes, num_params, output_feature, mapes_nn, mapes_proj, rmses_nn, rmses_proj])
+
+            # append results of computation times
+            df_computation_times = pd.concat([df_computation_times, df_computation_times_idx], ignore_index=True)
 
         # reset the options checkpoint_dir value
         options['checkpoints_dir'] = checkpoint_dir
@@ -700,16 +913,21 @@ def run_ablation_study_architectures(config_original, large_dataset_path, option
         df_specific_outputs = df_specific_outputs.sort_values(by='num_params', ascending=True)
         df_specific_outputs.to_csv(specific_outputs_file_path, index=False)
         print(f"\nResults of RMSE of specific outputs ({index_output_features}) saved as .csv files to:\n   → {specific_outputs_file_path}.")
-
+        
+        # create dataframe with mean of all outputs results
+        print(df_computation_times.head())
+        df_computation_times.to_csv(computation_times_file_path, index=False)
+        print(f"\nResults of computation times saved as .csv files to:\n   → {computation_times_file_path}.")
 
         # return results
-        return df_all_outputs, df_specific_outputs
+        return df_all_outputs, df_specific_outputs, df_computation_times
     
     else:
         df_all_outputs = pd.read_csv(all_results_file_path)
         df_specific_outputs = pd.read_csv(specific_outputs_file_path)
+        df_computation_times = pd.read_csv(computation_times_file_path)
         
-        return df_all_outputs, df_specific_outputs
+        return df_all_outputs, df_specific_outputs, df_computation_times
 
 # Plot the results for the mean of all outputs
 def Figure_6a_mean_all_outputs(options, df):
@@ -874,8 +1092,17 @@ def Figure_6a_specific_outputs(options, df_specific, output_features_names):
 def run_data_scaling_study(config_original, large_dataset_path, dataset_sizes, options):
     print("\n")
     print("=" * 20 + "             Data Scaling Study             " + "=" * 20)
+
+    table_dir = os.path.join(options['output_dir'], 'table_results')
+    os.makedirs(table_dir, exist_ok=True)
+    computation_times_file_path = os.path.join(table_dir, 'computation_times.csv')
+
+    df_all_outputs, df_specific_outputs, df_computation_times = run_experiment(config_original, large_dataset_path, dataset_sizes, options)
+
+    # store the results of df_computation_times
+    df_computation_times.to_csv(computation_times_file_path, index=False)
     
-    return run_experiment(config_original, large_dataset_path, dataset_sizes, options)
+    return df_all_outputs, df_specific_outputs, df_computation_times
 
 # Plot the results for the mean of all outputs
 def Figure_6e_mean_all_outputs(options, df):
