@@ -255,6 +255,7 @@ def save_checkpoint(model: torch.nn.Module,
                 train_data_losses: List[float],
                 train_physics_losses: List[float],
                 val_losses: List[float], 
+                val_physics_losses: List[float], 
                 checkpoint_path: str) -> None:
         
     # Prepare the checkpoint dictionary
@@ -266,6 +267,7 @@ def save_checkpoint(model: torch.nn.Module,
         'train_physics_losses': train_physics_losses,
         'train_data_losses': train_data_losses,
         'val_losses': val_losses,
+        'val_physics_losses': val_physics_losses,
     }
     torch.save(checkpoint, checkpoint_path)
 
@@ -284,6 +286,7 @@ def load_checkpoint(model: torch.nn.Module,
         train_physics_losses = checkpoint['train_physics_losses']
         train_data_losses = checkpoint['train_data_losses']
         val_losses = checkpoint['val_losses']
+        val_physics_losses  = checkpoint['val_physics_losses']
 
         print(f"\nCheckpoint loaded: Epoch {epoch}")
         print(f"Train Losses History: {len(train_losses)} entries")
@@ -295,7 +298,8 @@ def load_checkpoint(model: torch.nn.Module,
         'train_losses': train_losses,
         'train_physics_losses': train_physics_losses,
         'train_data_losses': train_data_losses,
-        'val_losses': val_losses
+        'val_losses': val_losses, 
+        'val_physics_losses': val_physics_losses
     }
 
         return model, optimizer, epoch, losses
@@ -305,7 +309,8 @@ def load_checkpoint(model: torch.nn.Module,
             'train_losses': [],
             'train_physics_losses': [],
             'train_data_losses': [],
-            'val_losses': []
+            'val_losses': [], 
+            'val_physics_losses': [],
         }
         return model, optimizer, 0, losses
 

@@ -6,17 +6,15 @@ import torch
 import contextlib
 import numpy as np
 import pandas as pd
-import torch.nn as nn
 from tqdm import tqdm
-from scipy import stats
 import matplotlib as mpl
-from typing import Dict, Any
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
+from matplotlib.lines import Line2D
 
 from src.spring_mass_system.utils import savefig
 from src.spring_mass_system.utils import set_seed
 from src.spring_mass_system.pinn_nn import NeuralNetwork, train_model
+
 
 
 pgf_with_latex = {                      # setup matplotlib to use latex for output
@@ -34,85 +32,11 @@ pgf_with_latex = {                      # setup matplotlib to use latex for outp
 }
 
 plt.rcParams.update(pgf_with_latex)
-"""
-
-def plot_output_gaussians(config, x1_diff, v1_diff, x2_diff, v2_diff, label):
 
 
-    # Create plot using LaTeX for pgf
-    mpl.use('pgf')
-    plt.style.use('seaborn-v0_8-paper')
-    fig, axs = plt.subplots(2, 2, figsize=(10, 8))
-    axs[0, 0].hist(x1_diff, bins=30, color='blue', edgecolor='black')
-    axs[0, 0].set_title(f"NN residuals: x_1 (mean = {np.mean(x1_diff):.2e})")
-    axs[0, 1].hist(v1_diff, bins=30, color='green', edgecolor='black')
-    axs[0, 1].set_title(f"NN residuals: v_1 (mean = {np.mean(v1_diff):.2e})")
-    axs[1, 0].hist(x2_diff, bins=30, color='red', edgecolor='black')
-    axs[1, 0].set_title(f"NN residuals: x_2 (mean = {np.mean(x2_diff):.2e})")
-    axs[1, 1].hist(v2_diff, bins=30, color='purple', edgecolor='black')
-    axs[1, 1].set_title(f"NN residuals: v_2 (mean = {np.mean(v2_diff):.2e})")
-    for ax in axs.flat:
-        ax.set_xlabel('Value')
-        ax.set_ylabel('Frequency')
-    # Save figures
-    output_dir = config['plotting']['output_dir']
-    os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, "extra_figures/Extra_Figure_1_"+label)
-    savefig(save_path, pad_inches = 0.2)
-
-    # Create plot using LaTeX for pgf
-    mpl.use('pgf')
-    plt.style.use('seaborn-v0_8-paper')
-    fig, axs = plt.subplots(2, 2, figsize=(12, 10))
-    colors = ['blue', 'green', 'red', 'purple']
-    data = [x1_diff, v1_diff, x2_diff, v2_diff]
-    titles = ['x_1', 'v_1', 'x_2', 'v_2']
-    for i, (ax, color, d, title) in enumerate(zip(axs.flat, colors, data, titles)):
-        # Create Q-Q plot
-        (osm, osr), _ = stats.probplot(d, dist="norm", plot=ax)
-        
-        # Customize the plot
-        ax.set_title(f"Q-Q Plot: NN residuals {title}")
-        ax.get_lines()[0].set_markerfacecolor(color)
-        ax.get_lines()[0].set_markeredgecolor('black')
-        ax.get_lines()[0].set_markersize(4)
-        ax.get_lines()[1].set_color('red')  # Set the line color to red
-        
-        # Set labels
-        ax.set_xlabel('Theoretical Quantiles')
-        ax.set_ylabel('Sample Quantiles')
-        
-        # Perform Shapiro-Wilk test
-        stat, p = stats.shapiro(d)
-        
-        # Add test results and other statistics to the plot
-        textstr = f'Shapiro-Wilk test:\np-value: {p:.2e}\n'
-        textstr += f'W statistic: {stat:.3f}\n'
-        textstr += f'Mean: {np.mean(d):.2e}\n'
-        textstr += f'Std Dev: {np.std(d):.2e}'
-        props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-        ax.text(0.05, 0.95, textstr, transform=ax.transAxes, fontsize=9,
-                verticalalignment='top', bbox=props)
-
-    # Save figures
-    output_dir = config['plotting']['output_dir']
-    os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, "extra_figures/Extra_Figure_1_qq_plot"+label)
-    savefig(save_path, pad_inches = 0.2)
-
-"""
-
-
-def get_trained_pinn(config: Dict[str, Any], preprocessed_data: Any) -> tuple:
+def get_trained_pinn(config, preprocessed_data, seed):
     """
     Initialize and train a Physics-Informed Neural Network (PINN) model.
-    
-    Args:
-        config (Dict[str, Any]): Configuration dictionary containing model parameters
-        preprocessed_data (Any): Preprocessed training data
-        
-    Returns:
-        tuple: (trained PINN model, training losses dictionary)
     """
     # Set the device (GPU if available, else CPU)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -125,39 +49,29 @@ def get_trained_pinn(config: Dict[str, Any], preprocessed_data: Any) -> tuple:
     optimizer = torch.optim.Adam(pinn_model.parameters(), lr=learning_rate)
     
     # Train the PINN model and collect training and validation losses
-    losses = train_model(config, config['pinn_model'], pinn_model, preprocessed_data, optimizer, device, checkpoint_dir = None)
+    losses = train_model(config, config['pinn_model'], pinn_model, preprocessed_data, optimizer, device, None, seed)
 
-    return pinn_model, losses
+    return pinn_model, losses, device
 
 
-def _get_results_pinn_errors_vs_lambda(config, N_lambdas, preprocessed_data):
+def _get_results_pinn_errors_vs_lambda(config, lambdas_arr, preprocessed_data, n_seeds, scale):
     """
     Analyze PINN performance across different physics loss weights (lambda values).
     
     This function either runs a new study of PINN performance across different lambda
     values or loads previously computed results.
-    
-    Args:
-        config: Configuration dictionary containing model and training parameters
-        N_lambdas (int): Number of lambda values to test
-        preprocessed_data: Preprocessed training data
-        
-    Returns:
-        pd.DataFrame: DataFrame containing loss metrics for each lambda value,
-                     or None if loading results fails
     """
 
     if config['pinn_model']['RUN_LAMBDA_STUDY']:
 
-        # array of uniformly generated N_lambdas between 0 and 1
-        lambdas_arr = np.linspace(0, 1, N_lambdas)
+        print("Lambda values = ", lambdas_arr)
 
         # perform a deep copy of config
         config_copy = copy.deepcopy(config)
         preprocessed_data_copy = copy.deepcopy(preprocessed_data)
 
         #
-        config_copy['plotting']['PRINT_LOSS_VALUES'] = False
+        config_copy['plotting']['PRINT_LOSS_VALUES'] = True
         config_copy['plotting']['PLOT_LOSS_CURVES'] = False
 
         # store results for each lambda value
@@ -171,18 +85,33 @@ def _get_results_pinn_errors_vs_lambda(config, N_lambdas, preprocessed_data):
 
                 # update the value of lambda_value
                 config_copy['pinn_model']['loss_physics_weight'] = lambda_value
+                
+                loss_train_total_list, loss_train_physics_list, loss_train_data_list, loss_val_list, loss_val_physics_list = [], [], [], [], []
+                for seed in range(n_seeds):
+                    # train the physics informed pinn
+                    set_seed(seed+1)
+                    _, pinn_losses, _ = get_trained_pinn(config_copy, preprocessed_data_copy, seed+1)
 
-                # train the physics informed pinn
-                set_seed(42)
-                _, pinn_losses = get_trained_pinn(config_copy, preprocessed_data_copy)
+                    # get mean errors
+                    loss_train_total_list.append(pinn_losses['train_losses'][-1])
+                    loss_train_physics_list.append(pinn_losses['train_physics_losses'][-1])
+                    loss_train_data_list.append(pinn_losses['train_data_losses'][-1])
+                    loss_val_list.append(pinn_losses['val_data_losses'][-1])
+                    loss_val_physics_list.append(pinn_losses['val_physics_losses'][-1])
 
                 # append the values of pinn losses 
                 new_row = {
-                    'lambda_physics_value': lambda_value, 
-                    'loss_train_total'    : pinn_losses['train_losses'][-1],
-                    'loss_train_physics'  : pinn_losses['train_physics_losses'][-1],
-                    'loss_train_data'     : pinn_losses['train_data_losses'][-1],
-                    'loss_val'            : pinn_losses['val_losses'][-1]
+                    'lambda_physics_value'  : lambda_value, 
+                    'loss_train_total'      : np.mean(loss_train_total_list),
+                    'loss_train_total_err'  : np.std(loss_train_total_list) / np.sqrt(n_seeds),
+                    'loss_train_physics'    : np.mean(loss_train_physics_list),
+                    'loss_train_physics_err': np.std(loss_train_physics_list) / np.sqrt(n_seeds),
+                    'loss_train_data'       : np.mean(loss_train_data_list),
+                    'loss_train_data_err'   : np.std(loss_train_data_list) / np.sqrt(n_seeds),
+                    'loss_val'              : np.mean(loss_val_list), 
+                    'loss_val_err'          : np.std(loss_val_list) / np.sqrt(n_seeds),
+                    'loss_val_physics'      : np.mean(loss_val_physics_list), 
+                    'loss_val_physics_err'  : np.std(loss_val_physics_list) / np.sqrt(n_seeds)
                 }
                 rows.append(new_row)
 
@@ -192,7 +121,7 @@ def _get_results_pinn_errors_vs_lambda(config, N_lambdas, preprocessed_data):
         # save the dataframe to a local directory
         output_dir = output_dir = config['plotting']['output_dir'] + "additional_results/"
         os.makedirs(output_dir, exist_ok=True)  
-        csv_path = os.path.join(output_dir, "table_lambda_physics_errors.csv")
+        csv_path = os.path.join(output_dir, f'table_lambda_physics_errors_{scale}.csv')
         df.to_csv(csv_path, index=False)
 
         return df
@@ -202,7 +131,7 @@ def _get_results_pinn_errors_vs_lambda(config, N_lambdas, preprocessed_data):
         try:
             # load the results from the local directory
             output_dir = config['plotting']['output_dir'] + "additional_results/"
-            csv_path = os.path.join(output_dir, "table_lambda_physics_errors.csv")
+            csv_path = os.path.join(output_dir, f'table_lambda_physics_errors_{scale}.csv')
             
             if not os.path.exists(csv_path):
                 print(f"Results file not found at: {csv_path}")
@@ -222,158 +151,138 @@ def _get_results_pinn_errors_vs_lambda(config, N_lambdas, preprocessed_data):
             return None
 
 
+def _plot_pinn_errors_vs_lambda_simple(config, df_pinn_errors, case, data_set):
+    
+    # Create figure and primary axis
+    mpl.use('pgf')
+    plt.style.use('seaborn-v0_8-paper')
+    fig, ax1 = plt.subplots(figsize=(6, 4.5))
+    #ax2 = ax1.twinx() # Create second y-axis
+    
+    # Get lambda values
+    if case == "near_1":
+        lambda_values = 1 - df_pinn_errors['lambda_physics_value']
+        x_label = r'$(1 - \lambda_{\mathrm{physics}})$'
+    else:
+        lambda_values = df_pinn_errors['lambda_physics_value']
+        x_label = r'$\lambda_{\mathrm{physics}}$'
+    
+    if data_set == "train":
+        y_label_1 = r'$\mathcal{L}$'
+        legend_1 = r'$\mathcal{L}_{\mathrm{data}}^{train}$'
+        legend_2 =  r'$\mathcal{L}_{\mathrm{physics}}^{train}$'
+
+        # get loss values
+        loss_data = df_pinn_errors['loss_train_data']
+        loss_data_err = df_pinn_errors['loss_train_data_err']
+        
+        loss_energy = df_pinn_errors['loss_train_physics']
+        loss_energy_err = df_pinn_errors['loss_train_physics_err']
+
+        loss_train_total = df_pinn_errors['loss_train_total']
+        loss_train_total_err = df_pinn_errors['loss_train_total_err']
+
+    elif data_set == "val":
+        y_label_1 = r'$\mathcal{L}$' #r'$\mathcal{L}_{\mathrm{Val}}$'
+        legend_1 = r'$\mathcal{L}_{\mathrm{data}}^{val}$'
+        legend_2 =  r'$\mathcal{L}_{\mathrm{physics}}^{val}$'
+
+        loss_data = df_pinn_errors['loss_val']
+        loss_data_err = df_pinn_errors['loss_val_err']
+        
+        loss_energy = df_pinn_errors['loss_val_physics']
+        loss_energy_err = df_pinn_errors['loss_val_physics_err']
+
+    # Equation (9)
+    ax1.plot(lambda_values, loss_data, linewidth=4, color='#2ca02c', label=legend_1)
+    ax1.errorbar(lambda_values, loss_data, yerr=loss_data_err,color='#2ca02c',alpha=0.6, capsize=3,  capthick=2, elinewidth=2,fmt='none' )
+    
+    # Equation (15)
+    ax1.plot(lambda_values, loss_energy, linewidth=4, color='#d62728', label=legend_2)
+    ax1.errorbar(lambda_values, loss_energy,  yerr=loss_energy_err,color='#d62728',alpha=0.6, capsize=3,capthick=2, elinewidth=2, fmt='none')
+    
+    # Equation (10)
+    if data_set == "train":
+        ax1.plot(lambda_values, loss_train_total, linewidth=4, color="#414040", label=r'$\mathcal{L}_{\mathrm{total}}^{train}$', linestyle='--',)
+        #ax1.errorbar(lambda_values, loss_train_total, yerr=loss_train_total_err,color='#414040',alpha=1, capsize=3,  capthick=2, elinewidth=2,fmt='none' )
+
+
+    # Gather handles and labels from both axes
+    handles1, labels1 = ax1.get_legend_handles_labels()
+    custom_handles = [
+        Line2D([0], [0], color=h.get_color(), linewidth=5)  # thicker legend line
+        for h in handles1
+    ]
+
+    # Add a combined legend outside the plot in two columns
+    fig.legend(custom_handles, labels1, loc='upper center', bbox_to_anchor=(0.6, 1.25), ncol=3, fontsize=35, frameon=False, handlelength=1)
+
+
+    if case == "near_1":
+
+        plt.xscale('log')
+        ax1.set_yscale('log')
+
+        if data_set == "val":
+            ax1.set_yticks([ 1e-6, 1e-4, 1e-2, 1e1])
+            ax1.set_yticklabels([r'$10^{-6}$',r'$10^{-4}$',r'$10^{-2}$',  r'$10^{1}$'])
+            ax1.set_ylim([5e-8, 4e-2])
+    
+        else:
+            ax1.set_yticks([1e-10, 1e-8, 1e-6, 1e-4, 1e-2, 1e1])
+            ax1.set_yticklabels([r'$10^{-10}$', r'$10^{-8}$', r'$10^{-6}$', r'$10^{-4}$', r'$10^{-2}$',  r'$10^{1}$'])
+            ax1.set_ylim([1e-11, 4e-2])
+
+        #ax1.set_xticks([1e-10,1e-7, 1e-4, 1e-2])
+        #ax1.set_xticklabels([r'$10^{-10}$',r'$10^{-7}$', r'$10^{-4}$', r'$10^{-2}$'])
+        ax1.set_xticks([1e-6, 1e-4, 1e-2])
+        ax1.set_xticklabels([r'$10^{-6}$',r'$10^{-4}$', r'$10^{-2}$'])
+        ax1.set_xlim([5e-7, 0.3])
+
+
+    elif(case == "uniform"):
+
+        ax1.set_yscale('log')
+
+        ax1.set_xticks([0, 0.2, 0.4, 0.6, 0.8, 1.0])
+        ax1.set_xticklabels([r'$0$', r'$0.2$', r'$0.4$', r'$0.6$', r'$0.8$', r'$1$'])
+        ax1.set_xlim([-0.1, 1.1])
+        
+        ax1.set_yticks([ 1e-8, 1e-5, 1e-2, 1e1])
+        ax1.set_yticklabels([r'$10^{-8}$',r'$10^{-5}$',r'$10^{-2}$',  r'$10^{1}$'])
+    
+
+    # Set tick parameters for styling
+    ax1.set_ylabel(y_label_1, fontweight='bold', fontsize=45, color="#000000", labelpad = 12)
+    ax1.set_xlabel(x_label, fontsize=40)
+    ax1.tick_params(axis='x', labelsize=40, length=8, width=1.5)
+    ax1.tick_params(axis='y', labelcolor="#000000", labelsize=40, length=8, width=1.5)
+    
+    # Save plot if output directory provided
+    plt.tight_layout()
+    output_dir = config['plotting']['output_dir'] + "additional_results/"
+    os.makedirs(output_dir, exist_ok=True)
+    save_path = os.path.join(output_dir, f"Figure_loss_vs_lambda_{data_set}_{case}")
+    savefig(save_path, pad_inches=0.2)
+    print(f"\nPlot of the Loss values as a function of the Lambda parameter of the PINN model saved as .pdf file to:\n   → {output_dir}.")
+
+
 def plot_pinn_errors_vs_lambda(config, preprocessed_data, N_lambdas, print_messages=True):
-    set_seed(42)
     if print_messages:
         print("\n\n====================  Lambda_Physics vs. Validation Loss Study  ====================")
 
     # 
-    df_pinn_errors = _get_results_pinn_errors_vs_lambda(config, N_lambdas, preprocessed_data)
+    n_seeds = 20
 
-    # plot the errors as a function of the lambda values
-    # Use LaTeX for pgf
-    mpl.use('pgf')
-    plt.style.use('seaborn-v0_8-paper')
-    fig = plt.figure(figsize=(20, 10))
+    # array of uniformly generated N_lambdas between 0 and 1
+    lambdas_arr = np.linspace(0, 1, num=30)
+    df_pinn_errors = _get_results_pinn_errors_vs_lambda(config, lambdas_arr, preprocessed_data, n_seeds, scale = "lin")
+    _plot_pinn_errors_vs_lambda_simple(config, df_pinn_errors, case = "uniform", data_set = "val")
+    _plot_pinn_errors_vs_lambda_simple(config, df_pinn_errors, case = "uniform", data_set = "train")
 
-    # The 4th column is used as blank space
-    gs = gridspec.GridSpec(2, 4, width_ratios=[1, 1, 1, 1], wspace=0.3, hspace=0.5) 
+    # array of uniformly generated N_lambdas between 0 and 1
+    lambdas_arr = np.array([1-10**-1, 1-10**-2, 1-10**-3,1-10**-4,1-10**-5,1-10**-6])
+    df_pinn_errors = _get_results_pinn_errors_vs_lambda(config, lambdas_arr, preprocessed_data, n_seeds, scale = "log")
+    _plot_pinn_errors_vs_lambda_simple(config, df_pinn_errors, case = "near_1", data_set = "val")
+    _plot_pinn_errors_vs_lambda_simple(config, df_pinn_errors, case = "near_1", data_set = "train")
 
-    # X ranges for the yellow shaded areas of the plots
-    zoom_lambda_ranges = [(0, 0.99), (0, 0.99), (0, 0.99), (0,0.99)]
-
-    # Initialize with infinity values to find true min/max
-    y_min_overall = float('inf')
-    y_max_overall = float('-inf')
-    
-    # Iterate through each loss type to find overall min and max
-    for loss_key in ['loss_train_total', 'loss_train_physics', 'loss_train_data', 'loss_val']:
-        min_loss_i = df_pinn_errors[loss_key].min()
-        max_loss_i = df_pinn_errors[loss_key].max()
-
-        # Update overall minimum if current loss minimum is smaller
-        if min_loss_i < y_min_overall:
-            y_min_overall = min_loss_i
-            
-        # Update overall maximum if current loss maximum is larger
-        if max_loss_i > y_max_overall:
-            y_max_overall = max_loss_i
-    
-    # Loop over the models to be plotted. Each column corresponds to a different model
-    for (loss_type_idx, loss_key) in enumerate(['loss_train_total', 'loss_train_physics', 'loss_train_data', 'loss_val']):
-        # Set appropriate labels and titles based on the loss type
-        if(loss_key == 'loss_train_total'):
-            y_label = r'Train Loss Total ($\mathcal{L}_{\mathrm{train}}$)'
-            title   = r'$\mathcal{L}_{\mathrm{train}}$'
-        elif(loss_key == 'loss_train_physics'):
-            y_label = r'Weighted $\mathcal{L}_{\mathrm{physics}}$'
-            title   = r'$\lambda_{\mathrm{physics}} * \mathcal{L}_{\mathrm{physics}}$'
-        elif(loss_key == 'loss_train_data'):
-            y_label = r'Weighted $\mathcal{L}_{\mathrm{data}}$'
-            title   = r'$(1 - \lambda_{\mathrm{physics}}) * \mathcal{L}_{\mathrm{data}}$'
-        elif(loss_key == 'loss_val'):
-            y_label = r'Validation Loss ($\mathcal{L}_{\mathrm{val}}$)'
-            title   = r'$\mathcal{L}_{\mathrm{val}}$'
-        
-        ax = fig.add_subplot(gs[0, loss_type_idx])
-        ax.plot(df_pinn_errors['lambda_physics_value'], df_pinn_errors[loss_key], label=y_label, linewidth = 5)
-        
-        # Highlight the zoomed-in region with yellow using the corresponding zoom range
-        zoom_start, zoom_end = zoom_lambda_ranges[loss_type_idx]  
-        ax.set_yscale('log')
-
-        ax.axvspan(zoom_start, zoom_end, color='yellow', alpha=0.3)
-        
-        # Only set ylabel for the first column
-        if loss_type_idx == 0: 
-            ax.set_ylabel(r'$\mathcal{L}_{\mathrm{MSE}}$', fontweight='bold', fontsize=30)
-        
-        # Only set xlabel 
-        ax.set_xlabel(r'$\lambda_{\mathrm{physics}}$', fontsize=30)
-
-        # Add title to the first plot of each column
-        ax.set_title(title, fontsize=35, pad = 20)
-        
-        # Remove x and y labels for other plots
-        if loss_type_idx != 0:
-            ax.set_yticklabels([])
-
-        # Set x_axis limits
-        x_min = df_pinn_errors['lambda_physics_value'].min()
-        x_max = df_pinn_errors['lambda_physics_value'].max()
-        padding = 0.05 * (x_max - x_min)
-        ax.set_xlim([x_min - padding, x_max + padding])
-        
-        # Set 4 evenly spaced ticks between 0 and 1
-        ax.set_xticks([0, 0.3, 0.7, 1])
-        
-        # Set y_axis limits
-        y_min_overall = max(1e-10, y_min_overall)  # Ensure minimum value is positive
-        log_range = np.log10(y_max_overall) - np.log10(y_min_overall)
-        padding_factor = 0.05  # 5% padding
-        y_min_padded = y_min_overall * (10**(-padding_factor * log_range))
-        y_max_padded = y_max_overall * (10**(padding_factor * log_range))
-        ax.set_ylim([y_min_padded, y_max_padded])
-        ax.tick_params(axis='both', labelsize=26)
-
-        ##################### Plot in the last column a comparison between all the plots ######################
-        # Create zoomed subplot
-        ax_zoom = fig.add_subplot(gs[1, loss_type_idx])
-        
-        # Get zoom range for current row
-        zoom_start, zoom_end = zoom_lambda_ranges[loss_type_idx]
-        
-        # Create mask for zoomed region
-        lambda_mask = (df_pinn_errors['lambda_physics_value'] >= zoom_start) & \
-                     (df_pinn_errors['lambda_physics_value'] <= zoom_end)
-        
-        # Get min and max values for current loss type in zoomed region
-        masked_data = df_pinn_errors[lambda_mask][loss_key]
-        current_min = masked_data.min()
-        current_max = masked_data.max()
-        
-        # Update overall min/max while ensuring positive values for log scale
-        y_min = 1e-8#max(1e-8, min(y_min_overall, current_min))
-        y_max = current_max#max(y_max_overall, current_max)
-        
-        # Calculate padding in log space
-        log_range = np.log10(y_max) - np.log10(y_min)
-        padding_factor = 0.05
-        y_min_padded = y_min * (10**(-padding_factor * log_range))
-        y_max_padded = y_max * (10**(padding_factor * log_range))
-        
-        # Plot the data
-        ax_zoom.plot(df_pinn_errors['lambda_physics_value'], 
-                    df_pinn_errors[loss_key], 
-                    linewidth=5)
-        
-        # Set log scale for y-axis
-        ax_zoom.set_yscale('log')
-        
-        # Set axis limits
-        padding = 0.05 * (zoom_end - zoom_start)
-        ax_zoom.set_xlim([zoom_start - padding, zoom_end + padding])
-        ax_zoom.set_ylim([y_min_padded, y_max_padded])
-        
-        # Set labels and ticks
-        ax_zoom.set_xlabel(r'$\lambda_{\mathrm{physics}}$', fontsize=30)
-        ax_zoom.tick_params(axis='both', labelsize=26)
-        
-        # Only set ylabel for the first column
-        if loss_type_idx == 0:
-            ax_zoom.set_ylabel(r'$\mathcal{L}_{\mathrm{MSE}}$', 
-                             fontweight='bold', 
-                             fontsize=30)
-            
-        ax_zoom.set_title('Zoom-in', fontsize = 25)
-        ax_zoom.set_xticks([0, 0.3, 0.7, 0.99])
-
-
-    # save the plot to a local directory
-    output_dir = config['plotting']['output_dir'] + "additional_results/"
-    os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, f"Figure_pinn_errors_vs_lambda")
-    savefig(save_path, pad_inches=0.2)
-    print(f"\nPlot of the Loss values as a function of the Lambda parameter of the PINN model saved as .pdf file to:\n   → {output_dir}.")
-
-    
