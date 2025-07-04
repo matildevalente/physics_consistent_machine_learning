@@ -16,13 +16,26 @@ from src.ltp_system.pinn_nn import get_trained_bootstraped_models, load_checkpoi
 
 output_labels = [r'O$_2$(X)', r'O$_2$(a$^1\Delta_g$)', r'O$_2$(b$^1\Sigma_g^+$)', r'O$_2$(Hz)', r'O$_2^+$', r'O($^3P$)', r'O($^1$D)', r'O$^+$', r'O$^-$', r'O$_3$', r'O$_3^*$', r'$T_g$', r'T$_{nw}$', r'E$_{red}$', r'$v_d$', r'T$_{e}$', r'$n_e$']
 
-pgf_with_latex = {                      # setup matplotlib to use latex for output
-    "pgf.texsystem": "pdflatex",        # change this if using xetex or lautex
-    "text.usetex": True,                # use LaTeX to write all text
+pgf_with_latex = {
+    "pgf.texsystem": "pdflatex",
+    "text.usetex": True,
     "font.family": "serif",
-    "font.serif": ["Computer Modern Roman", "Times", "Palatino"],  # LaTeX-compatible serif fonts
-    "font.monospace": ["Courier"],      # LaTeX-compatible monospace fonts
+    "font.serif": ["Computer Modern Roman", "Times", "Palatino"],
+    "font.monospace": ["Courier"],
+    "font.size": 12,
+    "legend.fontsize": 20,
+    "pgf.rcfonts": False,
+    "pgf.preamble": r"""
+        \usepackage{amsmath}
+        \usepackage{siunitx}
+        \usepackage{helvet}
+        \renewcommand{\familydefault}{\sfdefault}
+        \usepackage{anyfontsize}
+        \fontsize{30}{36}\selectfont
+    """
 }
+
+
 
 plt.rcParams.update(pgf_with_latex)
 
@@ -274,11 +287,6 @@ def Figure_6b(config, data_preprocessing_info, df_discrete, df_continuum, test_c
 
         # Plot 1: Scatter plot comparing ne_model and calculated ne
         fig, ax = plt.subplots(figsize=(7, 6))
-        ax.tick_params(axis='both', which='major', labelsize=15, width=2)
-        ax.tick_params(axis='both', which='minor', labelsize=15, width=2)
-        ax.xaxis.set_tick_params(which='both', direction='in', top=True, bottom=True)
-        ax.yaxis.set_tick_params(which='both', direction='in', left=True, right=True)
-        ax.yaxis.get_offset_text().set_fontsize(24)
 
         zero_errors = np.zeros_like(nn_model_pred_uncertainties[:,i])
         ax.errorbar(const_p_inputs[:,0], nn_model_outputs[:,i], yerr=None, xerr=nn_model_pred_uncertainties[:,i], fmt='ro', color='blue', ecolor='lightblue', capsize=4, markersize=3,capthick=2)
@@ -287,13 +295,23 @@ def Figure_6b(config, data_preprocessing_info, df_discrete, df_continuum, test_c
         ax.plot([], [], '--', color='green', markersize=5, label=f'NN projection', linewidth=3)
         ax.plot(discrete_inputs[:,0], discrete_targets[:,i], 'x', markeredgecolor='red',markeredgewidth=2, color='red', label=f'LoKI (target)', markersize=10, zorder=10)
 
-        ax.legend(fontsize=20)#, loc='upper right')
-        ax.set_xlabel(r"Pressure (Pa)", fontsize=24, fontweight='bold')
-        ax.set_ylabel(output_labels[i], fontsize=24, fontweight='bold')
+        ax.legend(fontsize=25)#, loc='upper right')
+        ax.set_xlabel(r"Pressure (Pa)", fontsize=30, fontweight='bold')
+        ax.set_ylabel(output_labels[i], fontsize=42, fontweight='bold')
+
+        x_max = np.max(const_p_inputs[:, 0])
+        ax.set_xticks([0, 500, 1000, 1333, x_max])
+        ax.set_xticklabels([r"$0$", r"$500$", r"$1000$", r"$1333$", fr"${x_max:.0f}$"], fontsize=200, fontweight='bold')
+
+        ax.tick_params(axis='both', which='major', labelsize=35, width=2)
+        ax.tick_params(axis='both', which='minor', labelsize=35, width=2)
+        ax.xaxis.set_tick_params(which='both', direction='in', top=True, bottom=True)
+        ax.yaxis.set_tick_params(which='both', direction='in', left=True, right=True)
+        ax.yaxis.get_offset_text().set_fontsize(35)
 
         # Make axis numbers bold
         for label in (ax.get_xticklabels() + ax.get_yticklabels()):
-            label.set_fontsize(24)
+            label.set_fontsize(35)
             label.set_fontweight('bold')
         for spine in ax.spines.values():
             spine.set_visible(True)

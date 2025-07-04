@@ -575,7 +575,7 @@ def _create_subfigures(fig, axes, options_plot, df_specific, n_cols, output_feat
     lines = [line1, line2]
 
     # Add single legend at the top
-    fig.legend(lines, labels, loc='center', bbox_to_anchor=(0.36, 0.34), ncol=3, fontsize=24, frameon=True)
+    fig.legend(lines, labels, loc='center', bbox_to_anchor=(0.5, 0.98), ncol=3, fontsize=24, frameon=True)
 
     return fig
 
@@ -667,8 +667,11 @@ def Figure_computation_times(options, case, file_path):
         # style and data
         title = "Ablation Study"
         name = "ablation_study"
+        # nn time: train the nn model + evaluate predictions
         total_nn_time = df['nn_training_time'] + df['nn_evaluation_time']
+        # proj nn time: total nn time + projection nn outputs
         total_nn_proj_time = total_nn_time + df['proj_evaluation_time']
+        # extract errors for the y axis
         rmse_nn_specific = df['mean_rmse_nn_specific']
         rmse_proj_nn_specific = df['mean_rmse_proj_nn_specific']
         # format y ticks
@@ -686,8 +689,11 @@ def Figure_computation_times(options, case, file_path):
         # style
         title = "Small Samples"
         name = "small_samples"
-        total_nn_time = df['nn_training_time'] + df['nn_evaluation_time']
+        # nn time: generate the data + train the nn model + evaluate predictions
+        total_nn_time = df['loki_computation_time'] + df['nn_training_time'] + df['nn_evaluation_time']
+        # proj nn time: total nn time + projection nn outputs
         total_nn_proj_time = total_nn_time + df['proj_evaluation_time']
+        # extract errors for the y axis
         rmse_nn_specific = df['mean_rmse_nn_specific']
         rmse_proj_nn_specific = df['mean_rmse_proj_nn_specific']
         # format y ticks
@@ -695,8 +701,8 @@ def Figure_computation_times(options, case, file_path):
         ax1.set_yticks([5e-2, 10e-2, 15e-2])    
         ax1.set_yticklabels(['5', '10', '15']) 
         # format x ticks
-        ax1.set_xticks([100, 500, 1000, 1500, 2000])    
-        ax1.set_xticklabels(['100', '500', '1000', '1500', '2000']) 
+        ax1.set_xticks([100, 25000, 50000, 75000, 100000])    
+        ax1.set_xticklabels(['100', '25000', '50000', '75000', '100000']) 
         # fit exponential to data
         x_nn_interp, y_nn_interp = power_law_fit(total_nn_time, rmse_nn_specific)
         x_proj_interp, y_proj_interp = power_law_fit(total_nn_proj_time, rmse_proj_nn_specific)
@@ -709,8 +715,8 @@ def Figure_computation_times(options, case, file_path):
     ax1.set_ylabel('RMSE', fontsize=24, fontweight='bold', labelpad=15)
     
     # Plot interpolated polynomial curves
-    ax1.plot(x_nn_interp, y_nn_interp, '-', color=models_parameters['NN']['color'], label='NN (interpolated)')
-    ax1.plot(x_proj_interp, y_proj_interp, '-', color=models_parameters['proj_nn']['color'], label='NN projection (interpolated)')
+    ax1.plot(x_nn_interp, y_nn_interp, '-', color=models_parameters['NN']['color'], label='NN (interpolation)')
+    ax1.plot(x_proj_interp, y_proj_interp, '-', color=models_parameters['proj_nn']['color'], label='NN projection (interpolation)')
     
     # plot nn and proj results
     ax1.plot(total_nn_time, rmse_nn_specific, 'o', color=models_parameters['NN']['color'], label='NN')
@@ -726,7 +732,7 @@ def Figure_computation_times(options, case, file_path):
     ax1.spines['bottom'].set_linewidth(2)
     ax1.spines['left'].set_linewidth(2)
     if(case == 2):
-        ax1.legend(fontsize=16,  bbox_to_anchor=(1.85, 0.8), ncol=1)
+        ax1.legend(fontsize=20,  bbox_to_anchor=(2.02, 0.8), ncol=1)
     # Save figure
     output_dir = options['output_dir'] + "plots"
     os.makedirs(output_dir, exist_ok=True)

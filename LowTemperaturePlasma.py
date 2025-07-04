@@ -1,13 +1,12 @@
 import os
 import torch
 import logging
-import numpy as np
 import pandas as pd
 import torch.nn as nn
-from typing import Dict, Any, Tuple
 
-from clean import flush_model_artifacts
+from clean import flush_model_artifacts, flush_lambda_study
 from src.ltp_system.plotter.eda import apply_eda
+from src.ltp_system.plotter.lambda_study import plot_pinn_errors_vs_lambda
 from src.ltp_system.utils import set_seed, load_dataset, load_config, select_random_rows, sample_dataset
 from src.ltp_system.data_prep import DataPreprocessor, setup_dataset_with_preproprocessing_info
 from src.ltp_system.pinn_nn import get_trained_bootstraped_models, load_checkpoints, NeuralNetwork
@@ -21,7 +20,7 @@ from src.ltp_system.plotter.outputs_vs_pressure import run_figures_output_vs_pre
 output_labels = [r'O$_2$(X)', r'O$_2$(a$^1\Delta_g$)', r'O$_2$(b$^1\Sigma_g^+$)', r'O$_2$(Hz)', r'O$_2^+$', r'O($^3P$)', r'O($^1$D)', r'O$^+$', r'O$^-$', r'O$_3$', r'O$_3^*$', r'$T_g$', r'T$_{nw}$', r'$E/N$', r'$v_d$', r'T$_{e}$', r'$n_e$']
 
 
-def main(retrain_flag):
+def main(retrain_flag, rerun_lambda_study):
     try:
         # /// 1. SETUP LOGGING ///
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -32,6 +31,7 @@ def main(retrain_flag):
 
         # /// 3. LOAD CONFIGURATION FILE /// 
         config = load_config(retrain_flag, 'configs/ltp_system_config.yaml')
+        config['pinn_model']['RUN_LAMBDA_STUDY'] = rerun_lambda_study
 
         # /// 4. EXTRACT FULL DATASET ///
         large_dataset_path = 'data/ltp_system/data_3000_points.txt'
@@ -50,6 +50,7 @@ def main(retrain_flag):
         loss_curves(config['nn_model'], config['plotting'], nn_losses_dict)
     
         # /// 7. TRAIN THE PHYSICS-INFORMED NEURAL NETWORK (PINN) ///
+        plot_pinn_errors_vs_lambda(config, data_preprocessing_info, train_data, val_loader )
         pinn_models, pinn_losses_dict, _ = get_trained_pinn(config, data_preprocessing_info, train_data, val_loader)
         loss_curves(config['pinn_model'], config['plotting'], pinn_losses_dict)
 
@@ -264,18 +265,21 @@ if __name__ == "__main__":
         
         response = input("\nPlease select configuration (1,2,3): ").strip()
         
-        if response == '1':
+        if response == '1':            
             # flush the current checkpoints, plots and tables
             retrain = flush_model_artifacts('ltp')
+            rerun_lambda_study = flush_lambda_study('ltp')
+
             print("──────────────────────────────────────────────────────────────────────────────\n")
-            main(retrain)
+            main(retrain, rerun_lambda_study)
             break
             
         elif response == '2':
             retrain = False
+            rerun_lambda_study = flush_lambda_study('ltp')
             print("\n[INFO] Using existing model weights and pre-computed results ...")
             print("──────────────────────────────────────────────────────────────────────────────\n")
-            main(retrain)
+            main(retrain, rerun_lambda_study)
             break
 
         elif response == '3':

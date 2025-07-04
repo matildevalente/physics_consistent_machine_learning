@@ -152,7 +152,7 @@ def main(retrain_flag, regenerate_data_flag, rerun_lambda_study):
 
         # /// 7. TRAIN THE PHYSICS-INFORMED NEURAL NETWORK (PINN) ///
         checkpoint_dir=os.path.join('output', 'spring_mass_system', 'checkpoints', 'pinn')
-        plot_pinn_errors_vs_lambda(config, preprocessed_data, N_lambdas = 100)
+        plot_pinn_errors_vs_lambda(config, preprocessed_data, N_lambdas = 20)
         pinn_model, pinn_losses = get_trained_pinn(config, preprocessed_data, checkpoint_dir)
         
         # /// 8. PLOT LOSS CURVES FOR THE NN AND PINN ///
@@ -212,7 +212,7 @@ if __name__ == "__main__":
             # flush dataset and the current checkpoints, plots and tables 
             regenerate_data = flush_data()
             retrain = flush_model_artifacts('spring')
-            rerun_lambda_study = flush_lambda_study()
+            rerun_lambda_study = flush_lambda_study('spring')
             
             print("──────────────────────────────────────────────────────────────────────────────\n")
             main(retrain, regenerate_data, rerun_lambda_study)
@@ -222,7 +222,7 @@ if __name__ == "__main__":
             regenerate_data = False
             # flush the current checkpoints, plots and tables
             retrain = flush_model_artifacts('spring')
-            rerun_lambda_study = flush_lambda_study()
+            rerun_lambda_study = flush_lambda_study('spring')
             print("──────────────────────────────────────────────────────────────────────────────\n")
             main(retrain, regenerate_data, rerun_lambda_study)
             break

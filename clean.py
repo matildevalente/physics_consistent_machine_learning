@@ -14,7 +14,12 @@ def flush_model_artifacts(system):
     system_directories = {
         'ltp': [
             'output/ltp_system/checkpoints/',
-            'src/ltp_system/figures/'
+            'src/ltp_system/figures/EDA/',
+            'src/ltp_system/figures/Figures_4/',
+            'src/ltp_system/figures/Figures_6a/',
+            'src/ltp_system/figures/Figures_6b/',
+            'src/ltp_system/figures/Figures_6d/',
+            'src/ltp_system/figures/loss_curves/',
         ],
         'spring': [
             'output/spring_mass_system/checkpoints/',
@@ -118,7 +123,7 @@ def flush_data():
         return False  
 
 
-def flush_lambda_study():
+def flush_lambda_study(system):
     """
     Handles flushing of the lambda analysis results in the spring mass system.
     Returns the regenerate_data flag.
@@ -128,7 +133,11 @@ def flush_lambda_study():
     """
 
     # Define dataset directory
-    directory = 'src/spring_mass_system/figures/additional_results/'
+    if(system == 'ltp'):
+        directory = 'src/ltp_system/figures/additional_results/'
+
+    elif(system == 'spring'):
+        directory = 'src/spring_mass_system/figures/additional_results/'
     
     print("──────────────────────────────────────────────────────────────────────────────")
     

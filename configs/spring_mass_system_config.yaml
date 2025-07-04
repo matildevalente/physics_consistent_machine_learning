@@ -15,25 +15,25 @@ spring_mass_system:
   L2: 0.5  # Natural length spring 2
 
 nn_model:
-  RETRAIN_MODEL: False
+  RETRAIN_MODEL: True
   input_size: 4
   output_size: 4
   hidden_sizes: [22, 98, 9] 
-  num_epochs:  60
+  num_epochs: 60
   learning_rate: 0.0001
   activation_fn: "leaky_relu"
   loss_physics_weight: 0
 
 pinn_model:
-  RETRAIN_MODEL: False
-  RUN_LAMBDA_STUDY: False
+  RETRAIN_MODEL: True
+  RUN_LAMBDA_STUDY: True
   input_size: 4
   output_size: 4
   hidden_sizes: [22, 98, 9] 
   activation_fn: "leaky_relu"
-  num_epochs:   60
+  num_epochs:    60
   learning_rate: 0.0001
-  loss_physics_weight: 0.005
+  loss_physics_weight: 0.1
 
 
 plotting:
@@ -42,7 +42,7 @@ plotting:
   PRINT_LOSS_VALUES: True
 
 fig_3_options:
-  rerun_results: False
+  rerun_results: True
   output_dir: "output/spring_mass_system/checkpoints/fig_3/"
 
 

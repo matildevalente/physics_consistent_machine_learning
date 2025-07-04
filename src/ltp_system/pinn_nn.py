@@ -64,7 +64,7 @@ class NeuralNetwork(nn.Module):
 
 # --------------------------------------------------------------------------- Methods for PINN Training & Validation
 # Compute the mean and std of the losses across the bootstraped models
-def aggregate_losses_(losses_train, losses_train_physics, losses_train_data, losses_val):
+def aggregate_losses_(losses_train, losses_train_data, losses_train_physics, losses_train_P, losses_train_I, losses_train_ne, losses_val, losses_val_physics, losses_val_P, losses_val_I, losses_val_ne):
     
     # Find max length
     max_epochs = max(len(sublist) for sublist in losses_train)
@@ -72,7 +72,7 @@ def aggregate_losses_(losses_train, losses_train_physics, losses_train_data, los
 
     mean_losses, std_losses = [], []
 
-    for losses in [losses_train, losses_train_physics, losses_train_data, losses_val]:
+    for losses in [losses_train, losses_train_data, losses_train_physics, losses_train_P, losses_train_I, losses_train_ne, losses_val, losses_val_physics, losses_val_P, losses_val_I, losses_val_ne]:
 
         losses_padded = [sublist + [np.nan] * (max_epochs - len(sublist)) for sublist in losses]
         
@@ -88,14 +88,28 @@ def aggregate_losses_(losses_train, losses_train_physics, losses_train_data, los
 
     losses_dict = {
         'epoch': np.arange(1, max_epochs + 1),
-        'losses_train_mean': mean_losses[0],
-        'losses_train_err': std_losses[0],
-        'losses_train_physics_mean': mean_losses[1],
-        'losses_train_physics_err': std_losses[1],
-        'losses_train_data_mean': mean_losses[2],
-        'losses_train_data_err': std_losses[2],
-        'losses_val_mean': mean_losses[3],
-        'losses_val_err': std_losses[3]
+        'losses_train_mean'       : mean_losses[0],
+        'losses_train_err'        : std_losses[0],
+        'losses_train_data_mean'  : mean_losses[1],
+        'losses_train_data_err'   : std_losses[1],
+        'losses_train_physics_mean': mean_losses[2],
+        'losses_train_physics_err': std_losses[2],
+        'losses_train_P_mean'     : mean_losses[3],
+        'losses_train_P_err'      : std_losses[3],
+        'losses_train_I_mean'     : mean_losses[4],
+        'losses_train_I_err'      : std_losses[4],
+        'losses_train_ne_mean'    : mean_losses[5],
+        'losses_train_ne_err'     : std_losses[5],
+        'losses_val_mean'         : mean_losses[6],
+        'losses_val_err'          : std_losses[6],
+        'losses_val_physics_mean' : mean_losses[7],
+        'losses_val_physics_err'  : std_losses[7], 
+        'losses_val_P_mean'       : mean_losses[8],
+        'losses_val_P_err'        : std_losses[8], 
+        'losses_val_I_mean'       : mean_losses[9],
+        'losses_val_I_err'        : std_losses[9],
+        'losses_val_ne_mean'      : mean_losses[10],
+        'losses_val_ne_err'       : std_losses[10]
     }
 
     # Return dictionary with aggregated losses    
@@ -116,7 +130,8 @@ def get_trained_bootstraped_models(config_model, config_plotting, preprocessed_d
 
     # Plot error as a function of seed
     models_list = []
-    losses_train_physics, losses_train_data, losses_train_total, losses_val = [], [], [], []
+    losses_train_physics, losses_train_data, losses_train_total, losses_val, losses_val_physics = [], [], [], [], []
+    losses_train_P, losses_train_I, losses_train_ne, losses_val_P, losses_val_I, losses_val_ne = [], [], [], [], [], []
 
     start_time = time.time()
   
@@ -148,13 +163,25 @@ def get_trained_bootstraped_models(config_model, config_plotting, preprocessed_d
 
         # 6. 
         losses_train_total.append(model_losses_dict['train_losses'])
-        losses_train_physics.append(model_losses_dict['train_physics_losses'])
         losses_train_data.append(model_losses_dict['train_data_losses'])
+        losses_train_physics.append(model_losses_dict['train_physics_losses'])
+        losses_train_P.append(model_losses_dict['train_P_losses'])
+        losses_train_I.append(model_losses_dict['train_I_losses'])
+        losses_train_ne.append(model_losses_dict['train_ne_losses'])
         losses_val.append(model_losses_dict['val_losses'])
+        losses_val_physics.append(model_losses_dict['val_losses_physics'])
+        losses_val_P.append(model_losses_dict['val_P_losses'])
+        losses_val_I.append(model_losses_dict['val_I_losses'])
+        losses_val_ne.append(model_losses_dict['val_ne_losses'])
 
     end_time = time.time()
     training_time = end_time - start_time
-    losses_dict_aggregated = aggregate_losses_(losses_train_total, losses_train_physics, losses_train_data, losses_val)
+    losses_dict_aggregated = aggregate_losses_(
+        losses_train_total, losses_train_data, losses_train_physics, 
+        losses_train_P, losses_train_I, losses_train_ne,
+        losses_val, losses_val_physics,
+        losses_val_P, losses_val_I, losses_val_ne
+    )
     save_checkpoints(models_list, losses_dict_aggregated, checkpoint_dir, config_model, training_time, print_messages)
     
     if print_messages:
@@ -165,10 +192,10 @@ def get_trained_bootstraped_models(config_model, config_plotting, preprocessed_d
 
 def train_model(config_plotting, config_model, model, preprocessed_data, loss_fn, optimizer, device, checkpoint_dir, scheduler, train_loader, val_loader, print_every=10):
     model.to(device)
-    train_losses, train_physics_losses, train_data_losses, val_losses = [], [], [], []
+    train_losses, train_physics_losses, train_data_losses, val_losses, val_losses_physics = [], [], [], [], []
+    train_P_losses, train_I_losses, train_ne_losses, val_P_losses, val_I_losses, val_ne_losses = [], [], [], [], [], []
     
     num_epochs = config_model['num_epochs']
-    best_model_state = None
     best_model_epoch = 0
     
     # Ensure the directory exists
@@ -180,16 +207,26 @@ def train_model(config_plotting, config_model, model, preprocessed_data, loss_fn
         # --------------------------- Training loop
         model.train()  # set mode
         train_loss_dict = _run_epoch_train(config_model, model, train_loader, loss_fn, optimizer, device, preprocessed_data)
+
         # append training loss values
         train_losses.append(train_loss_dict['train_loss'])
+        train_data_losses.append(train_loss_dict['train_data_loss'])
         train_physics_losses.append(train_loss_dict['train_weighted_physics_loss'])
-        train_data_losses.append(train_loss_dict['train_weighted_data_loss'])
-
+        train_P_losses.append(train_loss_dict['train_P_loss'])
+        train_I_losses.append(train_loss_dict['train_I_loss'])
+        train_ne_losses.append(train_loss_dict['train_ne_loss'])
+        
         # --------------------------- Validation loop
         model.eval()  # set mode
         with torch.no_grad():
-            val_loss = _run_epoch_val(model, val_loader, loss_fn, device, scheduler)
-            val_losses.append(val_loss)
+            val_loss, val_loss_physics, val_loss_P, val_loss_I, val_loss_ne = _run_epoch_val(model, val_loader, loss_fn, device, scheduler, config_model, preprocessed_data)
+
+            # append validation loss values
+            val_losses.append(val_loss) # the val loss only considers how well the model generalizes to new data 
+            val_losses_physics.append(val_loss_physics)
+            val_P_losses.append(val_loss_P)
+            val_I_losses.append(val_loss_I)
+            val_ne_losses.append(val_loss_ne)
         
         # --------------------------- Print loss as a func of epochs
         if (config_plotting['PRINT_LOSS_VALUES'] == True):
@@ -210,10 +247,17 @@ def train_model(config_plotting, config_model, model, preprocessed_data, loss_fn
     
     return {
         'train_losses': train_losses,
-        'train_physics_losses': train_physics_losses,
         'train_data_losses': train_data_losses,
+        'train_physics_losses': train_physics_losses,
+        'train_P_losses':  train_P_losses,
+        'train_I_losses':  train_I_losses,
+        'train_ne_losses': train_ne_losses,
         'val_losses': val_losses,
-        'best_epoch': best_model_epoch
+        'val_losses_physics': val_losses_physics,
+        'val_P_losses': val_P_losses,
+        'val_I_losses': val_I_losses,
+        'val_ne_losses': val_ne_losses,
+        'best_epoch': best_model_epoch 
     }
 
 # --------------------------------------------------------------- Residual computation
@@ -304,17 +348,24 @@ def _compute_pinn_loss(config_model, input_norm, y_pred_norm, y_target_norm, pre
     # Compute MSE of energy conservation
     physics_weights = config_model['lambda_physics']
     loss_physics_weighted = physics_weights[0] * P_constraint + physics_weights[1] * I_contraint + physics_weights[2] * ne_contraint
+    loss_physics_unweighted = P_constraint + I_contraint + ne_contraint
 
     # compute loss data
-    loss_data_weighted = (1 - (physics_weights[0] + physics_weights[1] + physics_weights[2])) * loss_fn(y_pred_norm, y_target_norm)
+    loss_data = loss_fn(y_pred_norm, y_target_norm)
+    loss_data_weighted = (1 - (physics_weights[0] + physics_weights[1] + physics_weights[2])) * loss_data
     
     # compute weighted loss 
     loss_total_pinn = loss_physics_weighted + loss_data_weighted
 
     return {
+        'loss_total': loss_total_pinn,
         'loss_physics_weighted': loss_physics_weighted,
+        'loss_P': P_constraint,
+        'loss_I': I_contraint,
+        'loss_ne': ne_contraint,
+        'loss_physics_unweighted': loss_physics_unweighted,
+        'loss_data': loss_data,
         'loss_data_weighted': loss_data_weighted,
-        'loss_total_pinn': loss_total_pinn
     }
 
 
@@ -323,6 +374,9 @@ def _run_epoch_train(config_model, model, train_loader, loss_fn, optimizer, devi
     epoch_loss_total = 0.0
     epoch_loss_physics = 0.0
     epoch_loss_data = 0.0
+    epoch_loss_P = 0.0
+    epoch_loss_I = 0.0
+    epoch_loss_ne = 0.0
     
     # for each epoch, rain the training loop
     for (batch_idx, batch) in enumerate(train_loader):
@@ -333,29 +387,39 @@ def _run_epoch_train(config_model, model, train_loader, loss_fn, optimizer, devi
         outputs = model(inputs)
 
         loss_dict = _compute_pinn_loss(config_model, inputs, outputs, targets, preprocessed_data, loss_fn)           
-        loss_dict['loss_total_pinn'].backward()
+        loss_dict['loss_total'].backward()
         optimizer.step()
         
-        epoch_loss_total += loss_dict['loss_total_pinn'].item() 
+        epoch_loss_total += loss_dict['loss_total'].item() 
+        epoch_loss_data += loss_dict['loss_data'].item()
+
+        # physics losses
         epoch_loss_physics += loss_dict['loss_physics_weighted'].item()
-        epoch_loss_data += loss_dict['loss_data_weighted'].item()
+        epoch_loss_P += loss_dict['loss_P'].item()
+        epoch_loss_I += loss_dict['loss_I'].item()
+        epoch_loss_ne += loss_dict['loss_ne'].item()
     
-    n_batches = len(train_loader)
-    epoch_loss_total   = epoch_loss_total / n_batches
-    epoch_loss_physics = epoch_loss_physics / n_batches
-    epoch_loss_data    = epoch_loss_data / n_batches
+    n_batches = len(train_loader)    
     
     return {
-        'train_loss': epoch_loss_total,
-        'train_weighted_physics_loss': epoch_loss_physics,
-        'train_weighted_data_loss': epoch_loss_data
+        'train_loss': epoch_loss_total/ n_batches,
+        'train_data_loss': epoch_loss_data/ n_batches,
+        'train_weighted_physics_loss': epoch_loss_physics/ n_batches,
+        'train_P_loss': epoch_loss_P/ n_batches,
+        'train_I_loss': epoch_loss_I/ n_batches,
+        'train_ne_loss': epoch_loss_ne/ n_batches
     }
 
 
 # --------------------------------------------------------------- Validation loop
-def _run_epoch_val(model, val_loader, loss_fn, device, scheduler):
+def _run_epoch_val(model, val_loader, loss_fn, device, scheduler, config_model, preprocessed_data):
 
     total_val_loss = 0
+    total_val_loss_physics = 0
+    total_val_loss_P = 0
+    total_val_loss_I = 0
+    total_val_loss_ne = 0
+
     # Calculate Validation Loss
     for (batch_idx, batch) in enumerate(val_loader):
         # (predictors, targets)
@@ -364,18 +428,32 @@ def _run_epoch_val(model, val_loader, loss_fn, device, scheduler):
         
         # compute outputs
         outputs = model(inputs)
+
+        # compute data validation loss
         loss_val = loss_fn(outputs, targets)
 
+        # compute physics validation loss
+        val_loss_dict = _compute_pinn_loss(config_model, inputs, outputs, targets, preprocessed_data, loss_fn)  
+
         # accumulate avgs
-        total_val_loss += loss_val.item()                 
-    
+        total_val_loss += loss_val.item()  
+        total_val_loss_physics += val_loss_dict['loss_physics_weighted'].item()   
+        total_val_loss_P  += val_loss_dict['loss_P'].item()       
+        total_val_loss_I  += val_loss_dict['loss_I'].item()  
+        total_val_loss_ne += val_loss_dict['loss_ne'].item()  
+
+
     n_batches = len(val_loader)
     total_val_loss = total_val_loss/n_batches
+    total_val_loss_physics = total_val_loss_physics/n_batches
+    total_val_loss_P = total_val_loss_P/n_batches
+    total_val_loss_I = total_val_loss_I/n_batches
+    total_val_loss_ne = total_val_loss_ne/n_batches
 
     # Reduce Learning Rate When Validation Loss Plateaus
     scheduler.step(total_val_loss)
 
-    return total_val_loss
+    return total_val_loss, total_val_loss_physics, total_val_loss_P, total_val_loss_I, total_val_loss_ne
 
 
 # --------------------------------------------------------------- Print loss as a func of epochs
@@ -386,8 +464,7 @@ def _print_epoch_summary(epoch, train_loss_dict, val_loss):
     print(
         f'epoch = {epoch:5d}   '
         f'L_train = {train_loss_dict["train_loss"]:.2e}   '
-        f'L_train_data = {train_loss_dict["train_weighted_data_loss"]:.2e} '
-        f'({_percentage(train_loss_dict["train_weighted_data_loss"], train_loss_dict["train_loss"]):.2f}%)   '
+        f'L_train_data = {train_loss_dict["train_data_loss"]:.2e} '
         f'L_train_physics = {train_loss_dict["train_weighted_physics_loss"]:.2e} '
         f'({_percentage(train_loss_dict["train_weighted_physics_loss"], train_loss_dict["train_loss"]):.2f}%)   '
         f'L_val= {val_loss:.2e}'
@@ -403,12 +480,26 @@ def save_checkpoints(models, losses_dict, save_dir, config_model, training_time,
         'epoch': losses_dict['epoch'],
         'losses_train_mean': losses_dict['losses_train_mean'], 
         'losses_train_err': losses_dict['losses_train_err'], 
-        'losses_train_physics_mean': losses_dict['losses_train_physics_mean'], 
-        'losses_train_physics_err': losses_dict['losses_train_physics_err'], 
         'losses_train_data_mean': losses_dict['losses_train_data_mean'], 
         'losses_train_data_err': losses_dict['losses_train_data_err'], 
-        'losses_val_mean': losses_dict['losses_val_mean'], 
-        'losses_val_err': losses_dict['losses_val_err'], 
+        'losses_train_physics_mean': losses_dict['losses_train_physics_mean'], 
+        'losses_train_physics_err': losses_dict['losses_train_physics_err'], 
+        'losses_train_P_mean'     :losses_dict['losses_train_P_mean'], 
+        'losses_train_P_err'      : losses_dict['losses_train_P_err'], 
+        'losses_train_I_mean'     : losses_dict['losses_train_I_mean'], 
+        'losses_train_I_err'      :losses_dict['losses_train_I_err'], 
+        'losses_train_ne_mean'    : losses_dict['losses_train_ne_mean'], 
+        'losses_train_ne_err'     : losses_dict['losses_train_ne_err'], 
+        'losses_val_mean'         : losses_dict['losses_val_mean'], 
+        'losses_val_err'          : losses_dict['losses_val_err'], 
+        'losses_val_physics_mean' : losses_dict['losses_val_physics_mean'], 
+        'losses_val_physics_err'  : losses_dict['losses_val_physics_err'], 
+        'losses_val_P_mean'       : losses_dict['losses_val_P_mean'], 
+        'losses_val_P_err'        : losses_dict['losses_val_P_err'], 
+        'losses_val_I_mean'       : losses_dict['losses_val_I_mean'], 
+        'losses_val_I_err'        : losses_dict['losses_val_I_err'], 
+        'losses_val_ne_mean'      : losses_dict['losses_val_ne_mean'], 
+        'losses_val_ne_err'       : losses_dict['losses_val_ne_err'], 
     }
     
     losses_path = os.path.join(save_dir, 'aggregated_losses.pth')

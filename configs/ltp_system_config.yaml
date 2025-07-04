@@ -37,7 +37,7 @@ nn_model:
 
 pinn_model:
   RETRAIN_MODEL: False
-  OPTIMIZE_ARC: False
+  RUN_LAMBDA_STUDY: False
   APPLY_EARLY_STOPPING: True
   hidden_sizes: [50,50] 
   activation_fns: ["leaky_relu", "leaky_relu"]
@@ -46,7 +46,7 @@ pinn_model:
   lambda_physics: [0.005, 0.005, 0.005]
   batch_size: 10
   training_threshold: 1E-4
-  n_bootstrap_models: 30
+  n_bootstrap_models: 30 
   patience: 2         # (int) Number of epochs to check
   alpha: 0.01 
 
